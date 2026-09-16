@@ -1,0 +1,27 @@
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Pass Authorization header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Do not rewrite actual files or directories
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Route all requests to index.php with route query param preserved
+    RewriteRule ^(.*)$ index.php?r=/$1 [QSA,L]
+</IfModule>
+
+# Safe directory listing prevention without causing 500 error if Options is restricted
+<IfModule mod_autoindex.c>
+    IndexIgnore *
+</IfModule>
+
+# Optional Security Headers if headers module is active
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
