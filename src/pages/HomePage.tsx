@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Stethoscope, Calendar, ArrowRight, ShieldCheck, Clock, CheckCircle2, Award, Users, Activity, Sparkles, Building2, HeartPulse, Baby, Smile, Brain, Volume2, ChevronRight, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { Specialty, DoctorProfile } from '../types.js';

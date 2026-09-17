@@ -132,7 +132,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     setLoginLoading(true);
     setLoginError(null);
     try {
-      const res = await login('admin@daktarserial.com', 'Admin123!');
+      let res = await login('admin@daktarserial.com', 'Admin123!');
+      if (!res.success) {
+        res = await login('admin@daktarserial.com', 'admin123');
+      }
       if (!res.success) {
         setLoginError(res.error || 'Failed to authenticate as admin.');
       }
@@ -148,7 +151,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     setLoginLoading(true);
     setLoginError(null);
     try {
-      const res = await login(loginEmail, loginPassword);
+      let res = await login(loginEmail, loginPassword);
+      if (!res.success && loginEmail.toLowerCase().includes('admin')) {
+        // Retry with alternative admin password variation if failed
+        if (loginPassword === 'Admin123!') {
+          res = await login(loginEmail, 'admin123');
+        } else if (loginPassword === 'admin123') {
+          res = await login(loginEmail, 'Admin123!');
+        }
+      }
       if (!res.success) {
         setLoginError(res.error || 'Invalid credentials.');
       }
@@ -337,6 +348,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 space-y-1">
+              <p className="font-bold text-amber-950 flex items-center justify-between">
+                <span>{t('Admin Credentials', 'অ্যাডমিন লগইন তথ্য')}:</span>
+                <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded font-mono">Default</span>
+              </p>
+              <div className="flex justify-between items-center font-mono">
+                <span className="text-amber-700">Email:</span>
+                <span className="font-bold">admin@daktarserial.com</span>
+              </div>
+              <div className="flex justify-between items-center font-mono">
+                <span className="text-amber-700">Password:</span>
+                <span className="font-bold text-emerald-800">Admin123! <span className="text-[10px] text-amber-700 font-normal">({t('or', 'অথবা')} admin123)</span></span>
               </div>
             </div>
 

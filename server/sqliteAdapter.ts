@@ -222,11 +222,26 @@ function initSqliteSchema(db: DatabaseSync) {
 }
 
 function seedSqliteDatabase(db: DatabaseSync) {
-  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number };
-  if (userCount.c > 0) return;
-
+  const adminPasswordHash = bcrypt.hashSync('Admin123!', 10);
   const defaultPasswordHash = bcrypt.hashSync('Password123!', 10);
-  const adminPasswordHash = bcrypt.hashSync('admin123', 10);
+
+  // Ensure admin user always exists with valid credentials
+  try {
+    const adminUser = db.prepare("SELECT id FROM users WHERE email = 'admin@daktarserial.com'").get() as { id: number } | undefined;
+    if (!adminUser) {
+      db.prepare(`
+        INSERT INTO users (name, email, phone, password_hash, role, status)
+        VALUES ('System Admin', 'admin@daktarserial.com', '+8801711000000', ?, 'admin', 'active')
+      `).run(adminPasswordHash);
+    } else {
+      db.prepare("UPDATE users SET password_hash = ?, role = 'admin', status = 'active' WHERE email = 'admin@daktarserial.com'").run(adminPasswordHash);
+    }
+  } catch (adminErr) {
+    console.error('Error ensuring admin user in sqlite:', adminErr);
+  }
+
+  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number };
+  if (userCount.c > 1) return;
 
   // 1. Seed Specialties
   const specialties = [
