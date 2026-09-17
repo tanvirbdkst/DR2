@@ -1,0 +1,125 @@
+<?php
+declare(strict_types=1);
+
+return [
+    'app_name' => 'Daktar Serial',
+    'tagline' => 'Easily Book Doctor Chamber Serials',
+
+    // Navbar
+    'home' => 'Home',
+    'find_doctor' => 'Find Doctor',
+    'hospitals' => 'Hospitals / Clinics',
+    'how_it_works' => 'How It Works',
+    'login' => 'Login',
+    'register' => 'Register',
+    'logout' => 'Logout',
+    'patient_portal' => 'Patient Profile',
+    'doctor_portal' => 'Doctor Portal',
+    'admin_portal' => 'Admin Panel',
+    'dashboard' => 'Dashboard',
+    'my_appointments' => 'My Serials',
+    'profile' => 'Profile',
+    'notifications' => 'Notifications',
+
+    // Hero section
+    'hero_title' => 'Find Your Trusted Specialist Doctor',
+    'hero_subtitle' => 'The hassle-free, secure online serial booking platform for real chamber visits across Bangladesh',
+    'search_doctor' => 'Search Doctor',
+    'search_placeholder' => 'Enter doctor name or specialty (e.g. Medicine, Cardiology)...',
+    'all_specialties' => 'All Specialties',
+    'all_locations' => 'All Locations / Cities',
+    'search_btn' => 'Search Serial',
+
+    // Home Sections
+    'popular_specialists' => 'Popular Specialties',
+    'popular_specialists_sub' => 'Choose specialists based on your health symptoms',
+    'featured_doctors' => 'Verified Specialist Doctors',
+    'featured_doctors_sub' => 'Direct consultation with BMDC-verified expert physicians',
+    'popular_hospitals' => 'Popular Hospitals & Diagnostic Centers',
+    'popular_hospitals_sub' => 'Chamber facilities at top medical institutes and clinics',
+
+    'how_step_1_title' => '01. Find Doctor',
+    'how_step_1_desc' => 'Search by specialty, location, or credentials in seconds.',
+    'how_step_2_title' => '02. Pick Serial Slot',
+    'how_step_2_desc' => 'Choose your preferred date, chamber and real-time open serial.',
+    'how_step_3_title' => '03. Live Queue & Visit',
+    'how_step_3_desc' => 'Track chamber queue progression live from home and arrive right on time.',
+
+    'why_choose_us' => 'Why Choose Daktar Serial?',
+    'why_1_title' => 'Zero Convenience Fees',
+    'why_1_desc' => 'Book serials for free; pay standard consultation fees directly at the chamber.',
+    'why_2_title' => '100% Double Booking Protection',
+    'why_2_desc' => 'Atomic row-level database locking ensures no two patients get the same slot.',
+    'why_3_title' => 'Live Queue Tracker',
+    'why_3_desc' => 'Know who is currently inside and when to leave your home.',
+    'why_4_title' => 'BMDC Verified Physicians',
+    'why_4_desc' => 'Registered doctors authenticated through official BMDC records.',
+
+    'patient_reviews' => 'Patient Experiences',
+    'patient_reviews_sub' => 'Real feedback from patients who booked serials through our platform',
+    'doctor_cta_title' => 'Are You a Medical Specialist?',
+    'doctor_cta_desc' => 'Join Daktar Serial today to streamline your chamber queues and serial bookings digitally.',
+    'doctor_cta_btn' => 'Register as Doctor',
+
+    // FAQ
+    'faq_title' => 'Frequently Asked Questions (FAQ)',
+    'faq_q1' => 'Is there any advance booking fee?',
+    'faq_a1' => 'No, serial booking on Daktar Serial is completely free. You only pay the official doctor fee at the chamber.',
+    'faq_q2' => 'How can I check the live queue status?',
+    'faq_a2' => 'From your patient dashboard, click "Live Queue Progress" to see the active serial number and how many are ahead of you.',
+    'faq_q3' => 'What if I am unable to attend?',
+    'faq_a3' => 'You can cancel your appointment from your dashboard with one click, releasing the slot for other patients.',
+
+    // Doctor Details & Booking
+    'bmdc_reg' => 'BMDC Reg.',
+    'experience' => 'Experience',
+    'years' => 'Years',
+    'consultation_fee' => 'Fee',
+    'follow_up_fee' => 'Follow-up',
+    'about_doctor' => 'About Doctor',
+    'select_chamber' => 'Select Chamber',
+    'select_date' => 'Select Date',
+    'available_serials' => 'Available Serial Slots',
+    'get_serial' => 'Confirm Serial Booking',
+    'no_serials_available' => 'No serial slots available on this date',
+    'select_slot_prompt' => 'Please select a serial slot to proceed',
+    'patient_information' => 'Patient Information',
+    'patient_name' => 'Patient Full Name',
+    'patient_phone' => 'Mobile Phone',
+    'patient_age' => 'Age',
+    'patient_gender' => 'Gender',
+    'male' => 'Male',
+    'female' => 'Female',
+    'other' => 'Other',
+    'problem_summary' => 'Health Problem (Brief)',
+
+    // Queue System
+    'queue_serving' => 'Currently In Consultation',
+    'queue_called' => 'Called (Ready)',
+    'queue_next' => 'Next Serial',
+    'queue_waiting' => 'Waiting in Chamber',
+    'call_next' => 'Call Next Patient',
+    'ahead_of_you' => 'Patients Ahead of You',
+    'persons' => 'Persons',
+
+    // Statuses
+    'status_confirmed' => 'Confirmed',
+    'status_waiting' => 'Waiting at Chamber',
+    'status_called' => 'Called Inside',
+    'status_in_consultation' => 'In Consultation',
+    'status_completed' => 'Completed',
+    'status_cancelled' => 'Cancelled',
+    'status_no_show' => 'No Show',
+
+    // Common Buttons & Messages
+    'save' => 'Save Changes',
+    'edit' => 'Edit',
+    'delete' => 'Delete',
+    'confirm' => 'Confirm',
+    'cancel' => 'Cancel',
+    'view' => 'View',
+    'print' => 'Print Slip',
+    'review' => 'Leave Review',
+    'success' => 'Success',
+    'error' => 'Error',
+];

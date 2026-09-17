@@ -1,4 +1,9 @@
 node_modules/
+
+build/
+dist/
+coverage/
+
 .env
 .env.*
 !.env.example
@@ -9,7 +14,8 @@ node_modules/
 
 stderr.log
 tmp/
-
 npm-debug.log*
+*.log
+
 .DS_Store
 dist_old/

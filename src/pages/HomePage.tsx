@@ -1,8 +1,82 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Stethoscope, Calendar, ArrowRight, ShieldCheck, Clock, CheckCircle2, Award, Users, Activity, Sparkles, Building2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, MapPin, Stethoscope, Calendar, ArrowRight, ShieldCheck, Clock, CheckCircle2, Award, Users, Activity, Sparkles, Building2, HeartPulse, Baby, Smile, Brain, Volume2, ChevronRight, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { Specialty, DoctorProfile } from '../types.js';
 
+const getSpecialtyConfig = (slug: string) => {
+  const s = (slug || '').toLowerCase();
+  if (s.includes('cardio') || s.includes('heart')) {
+    return {
+      Icon: HeartPulse,
+      iconBg: 'bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white',
+      borderHover: 'hover:border-rose-400 hover:shadow-rose-500/10',
+      badgeBg: 'bg-rose-50 text-rose-700 border-rose-100',
+    };
+  }
+  if (s.includes('gynecol') || s.includes('women') || s.includes('obs')) {
+    return {
+      Icon: Baby,
+      iconBg: 'bg-pink-50 text-pink-600 group-hover:bg-pink-600 group-hover:text-white',
+      borderHover: 'hover:border-pink-400 hover:shadow-pink-500/10',
+      badgeBg: 'bg-pink-50 text-pink-700 border-pink-100',
+    };
+  }
+  if (s.includes('pediatric') || s.includes('child')) {
+    return {
+      Icon: Smile,
+      iconBg: 'bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white',
+      borderHover: 'hover:border-amber-400 hover:shadow-amber-500/10',
+      badgeBg: 'bg-amber-50 text-amber-700 border-amber-100',
+    };
+  }
+  if (s.includes('dermatol') || s.includes('skin')) {
+    return {
+      Icon: Sparkles,
+      iconBg: 'bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white',
+      borderHover: 'hover:border-purple-400 hover:shadow-purple-500/10',
+      badgeBg: 'bg-purple-50 text-purple-700 border-purple-100',
+    };
+  }
+  if (s.includes('orthoped') || s.includes('bone')) {
+    return {
+      Icon: Activity,
+      iconBg: 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white',
+      borderHover: 'hover:border-blue-400 hover:shadow-blue-500/10',
+      badgeBg: 'bg-blue-50 text-blue-700 border-blue-100',
+    };
+  }
+  if (s.includes('ent') || s.includes('ear') || s.includes('throat')) {
+    return {
+      Icon: Volume2,
+      iconBg: 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white',
+      borderHover: 'hover:border-teal-400 hover:shadow-teal-500/10',
+      badgeBg: 'bg-teal-50 text-teal-700 border-teal-100',
+    };
+  }
+  if (s.includes('neuro') || s.includes('brain')) {
+    return {
+      Icon: Brain,
+      iconBg: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
+      borderHover: 'hover:border-indigo-400 hover:shadow-indigo-500/10',
+      badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+    };
+  }
+  if (s.includes('eye') || s.includes('ophthalm')) {
+    return {
+      Icon: Eye,
+      iconBg: 'bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white',
+      borderHover: 'hover:border-cyan-400 hover:shadow-cyan-500/10',
+      badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-100',
+    };
+  }
+  return {
+    Icon: Stethoscope,
+    iconBg: 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
+    borderHover: 'hover:border-emerald-400 hover:shadow-emerald-500/10',
+    badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  };
+};
 interface HomePageProps {
   onSearch: (filters: { search: string; specialty: string; location: string }) => void;
   onSelectDoctor: (doctorId: number) => void;
@@ -185,24 +259,30 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {specialties.slice(0, 12).map((spec) => (
-            <div
-              key={spec.id}
-              onClick={() => onSearch({ search: '', specialty: spec.slug, location: '' })}
-              className="p-4 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md transition group cursor-pointer text-center"
-            >
-              <div className="w-10 h-10 mx-auto rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition">
-                <Stethoscope className="w-5 h-5" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3.5 sm:gap-4">
+          {specialties.slice(0, 12).map((spec) => {
+            const conf = getSpecialtyConfig(spec.slug);
+            const IconComp = conf.Icon;
+            return (
+              <div
+                key={spec.id}
+                onClick={() => onSearch({ search: '', specialty: spec.slug, location: '' })}
+                className={`p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 ${conf.borderHover} hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group cursor-pointer text-center flex flex-col items-center justify-center`}
+              >
+                <div className={`w-12 h-12 mx-auto rounded-xl ${conf.iconBg} flex items-center justify-center group-hover:scale-110 transition-all duration-200 shadow-xs mb-3`}>
+                  <IconComp className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-emerald-600 transition leading-snug line-clamp-1">
+                  {spec.name}
+                </h3>
+                {spec.name_bn && (
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1 line-clamp-1 font-normal">
+                    {spec.name_bn}
+                  </p>
+                )}
               </div>
-              <h3 className="font-semibold text-slate-800 text-xs mt-3 line-clamp-1 group-hover:text-emerald-600 transition">
-                {spec.name}
-              </h3>
-              {spec.name_bn && (
-                <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{spec.name_bn}</p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
