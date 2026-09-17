@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   Stethoscope, Building2, Calendar, Clock, Plus, Users, CheckCircle2,
-  AlertCircle, X, Check, Filter, ChevronRight, Phone, MapPin, Award, ShieldAlert
+  AlertCircle, X, Check, Filter, ChevronRight, Phone, MapPin, Award, ShieldAlert,
+  Camera, Save, User as UserIcon, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Chamber, Schedule, Appointment } from '../types.js';
+import { ImageUpload } from '../components/ImageUpload.js';
 
 export const DoctorDashboardPage: React.FC = () => {
-  const { user, t } = useAuth();
+  const { user, refreshUser, t } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'appointments' | 'chambers' | 'schedules' | 'profile'>('appointments');
   const [profile, setProfile] = useState<DoctorProfile | null>(null);
@@ -42,6 +44,15 @@ export const DoctorDashboardPage: React.FC = () => {
   const [newSchDuration, setNewSchDuration] = useState('10');
   const [savingSchedule, setSavingSchedule] = useState(false);
 
+  // Form states for Profile & Photo Update
+  const [editAvatarUrl, setEditAvatarUrl] = useState('');
+  const [editTitle, setEditTitle] = useState('Dr.');
+  const [editQualification, setEditQualification] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editFee, setEditFee] = useState('800');
+  const [savingProfile, setSavingProfile] = useState(false);
+
   // Action status message
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -57,6 +68,14 @@ export const DoctorDashboardPage: React.FC = () => {
       if (profRes.ok) {
         const pData = await profRes.json();
         setProfile(pData.doctor);
+        if (pData.doctor) {
+          setEditAvatarUrl(pData.doctor.avatar_url || '');
+          setEditTitle(pData.doctor.title || 'Dr.');
+          setEditQualification(pData.doctor.qualification || '');
+          setEditBio(pData.doctor.bio || '');
+          setEditPhone(pData.doctor.phone || '');
+          setEditFee(String(pData.doctor.consultation_fee || 800));
+        }
       }
       if (chamRes.ok) {
         const cData = await chamRes.json();
@@ -151,6 +170,40 @@ export const DoctorDashboardPage: React.FC = () => {
     }
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const res = await fetch('/api/doctor/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          avatarUrl: editAvatarUrl,
+          title: editTitle,
+          qualification: editQualification,
+          bio: editBio,
+          phone: editPhone,
+          consultationFee: Number(editFee),
+        }),
+      });
+      if (res.ok) {
+        setNotification({
+          type: 'success',
+          message: t('Doctor profile and photo updated successfully!', 'ডাক্তারের প্রোফাইল এবং ছবি সফলভাবে আপডেট করা হয়েছে!'),
+        });
+        await fetchDashboardData();
+        await refreshUser();
+      } else {
+        const d = await res.json();
+        setNotification({ type: 'error', message: d.error || 'Failed to update profile' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Error updating profile' });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const handleUpdateStatus = async (appointmentId: number, status: string) => {
     try {
       const res = await fetch(`/api/doctor/appointments/${appointmentId}/status`, {
@@ -214,11 +267,22 @@ export const DoctorDashboardPage: React.FC = () => {
       {/* Doctor Header Profile */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <img
-            src={profile?.avatar_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&auto=format&fit=crop&q=80'}
-            alt={profile?.name}
-            className="w-16 h-16 rounded-2xl object-cover border border-slate-100 shadow-xs"
-          />
+          <div
+            onClick={() => setActiveTab('profile')}
+            title={t('Click to edit profile & change photo', 'প্রোফাইল ছবি পরিবর্তন করতে ক্লিক করুন')}
+            className="relative group cursor-pointer"
+          >
+            <img
+              src={profile?.avatar_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&auto=format&fit=crop&q=80'}
+              alt={profile?.name}
+              className="w-16 h-16 rounded-2xl object-cover border border-slate-100 shadow-xs group-hover:opacity-90 transition"
+            />
+            <div
+              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-600 group-hover:bg-emerald-700 text-white flex items-center justify-center shadow-md border-2 border-white transition"
+            >
+              <Camera className="w-3 h-3" />
+            </div>
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">
@@ -259,7 +323,7 @@ export const DoctorDashboardPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="border-b border-slate-200">
-        <nav className="flex space-x-8 text-xs sm:text-sm font-semibold">
+        <nav className="flex flex-wrap space-x-6 sm:space-x-8 text-xs sm:text-sm font-semibold">
           <button
             onClick={() => setActiveTab('appointments')}
             className={`pb-3 border-b-2 transition cursor-pointer ${
@@ -289,6 +353,17 @@ export const DoctorDashboardPage: React.FC = () => {
             }`}
           >
             Weekly Schedules ({schedules.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`pb-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'profile'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Camera className="w-4 h-4" />
+            <span>{t('Profile & Photo (ছবি ও তথ্য)', 'প্রোফাইল ও ছবি')}</span>
           </button>
         </nav>
       </div>
@@ -532,6 +607,115 @@ export const DoctorDashboardPage: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Doctor Profile & Photo */}
+      {activeTab === 'profile' && (
+        <div className="max-w-3xl space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">
+                {t('Doctor Profile & Photo Settings', 'ডাক্তারের প্রোফাইল ও ছবির সেটিংস')}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {t('Update your profile photo, consultation fee, bio and qualifications.', 'আপনার প্রোফাইল ছবি, ভিজিট ফি, পরিচিতি ও ডিগ্রি আপডেট করুন।')}
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-6">
+              {/* Photo Upload with Drag & Drop & Click */}
+              <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <ImageUpload
+                  value={editAvatarUrl}
+                  onChange={setEditAvatarUrl}
+                  label={t('Doctor Profile Photo (প্রোফাইল ছবি)', 'ডাক্তারের প্রোফাইল ছবি (Profile Photo)')}
+                  subLabel={t('Drag & drop or click to change your doctor picture (JPG, PNG, WebP max 8MB)', 'ছবি ড্র্যাগ অ্যান্ড ড্রপ করুন অথবা ব্রাউজ করতে ক্লিক করুন (সর্বোচ্চ ৮ এমবি)')}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Title', 'উপাধি')}
+                  </label>
+                  <select
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                  >
+                    <option value="Dr.">Dr.</option>
+                    <option value="Prof. Dr.">Prof. Dr.</option>
+                    <option value="Assoc. Prof. Dr.">Assoc. Prof. Dr.</option>
+                    <option value="Asst. Prof. Dr.">Asst. Prof. Dr.</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Phone Number', 'ফোন নম্বর')}
+                  </label>
+                  <input
+                    type="tel"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Qualifications & Degrees', 'ডিগ্রি ও শিক্ষাগত যোগ্যতা')}
+                  </label>
+                  <input
+                    type="text"
+                    value={editQualification}
+                    onChange={(e) => setEditQualification(e.target.value)}
+                    placeholder="e.g. MBBS, FCPS (Medicine), MACP (USA)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Default Consultation Fee (৳)', 'ভিজিট ফি (টাকা)')}
+                  </label>
+                  <input
+                    type="number"
+                    value={editFee}
+                    onChange={(e) => setEditFee(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden font-bold text-emerald-700"
+                  />
+                </div>
+              </div>
+
+              <div className="text-xs">
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {t('Professional Biography & Experience', 'অভিজ্ঞতা ও সংক্ষিপ্ত পরিচিতি')}
+                </label>
+                <textarea
+                  rows={4}
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  placeholder="Doctor background, specialization details, hospital affiliations..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="submit"
+                  disabled={savingProfile}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{savingProfile ? t('Saving Changes...', 'সংরক্ষণ করা হচ্ছে...') : t('Save Profile & Photo', 'প্রোফাইল ও ছবি সংরক্ষণ করুন')}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

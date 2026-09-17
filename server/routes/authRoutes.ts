@@ -92,6 +92,7 @@ router.post('/register-doctor', async (req, res) => {
       email,
       phone,
       password,
+      avatarUrl,
       bmdcNumber,
       specialtyId,
       qualification,
@@ -134,10 +135,10 @@ router.post('/register-doctor', async (req, res) => {
     try {
       await conn.beginTransaction();
 
-      // Create user with 'doctor' role and 'pending' status
+      // Create user with 'doctor' role, 'pending' status, and avatar_url
       const [userRes] = await conn.execute<ResultSetHeader>(
-        `INSERT INTO users (name, email, phone, password_hash, role, status) VALUES (?, ?, ?, ?, 'doctor', 'pending')`,
-        [name, email, phone, passwordHash]
+        `INSERT INTO users (name, email, phone, password_hash, role, status, avatar_url) VALUES (?, ?, ?, ?, 'doctor', 'pending', ?)`,
+        [name, email, phone, passwordHash, avatarUrl || null]
       );
       userId = userRes.insertId;
 
@@ -203,6 +204,7 @@ router.post('/register-doctor', async (req, res) => {
         role: 'doctor',
         status: 'pending',
         doctorId,
+        avatarUrl: avatarUrl || null,
       },
     });
   } catch (err: any) {

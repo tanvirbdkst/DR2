@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Building2, ShieldCheck, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Stethoscope, Building2, ShieldCheck, AlertCircle, ArrowRight, CheckCircle2, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { Specialty } from '../types.js';
+import { ImageUpload } from '../components/ImageUpload.js';
 
 interface RegisterDoctorPageProps {
   onSuccess: () => void;
@@ -12,7 +13,8 @@ export const RegisterDoctorPage: React.FC<RegisterDoctorPageProps> = ({ onSucces
   const { refreshUser, t } = useAuth();
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
 
-  // Account details
+  // Account details & Profile Photo
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -58,6 +60,7 @@ export const RegisterDoctorPage: React.FC<RegisterDoctorPageProps> = ({ onSucces
           email,
           phone,
           password,
+          avatarUrl: avatarUrl || null,
           title,
           bmdcNumber,
           specialtyId: specialtyId ? Number(specialtyId) : null,
@@ -152,11 +155,20 @@ export const RegisterDoctorPage: React.FC<RegisterDoctorPageProps> = ({ onSucces
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Section 1: Basic Account */}
-          <div className="space-y-3">
+          {/* Section 1: Basic Account & Photo */}
+          <div className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1">
-              1. Account Information
+              1. {t('Doctor Profile Photo & Account Information', 'ডাক্তারের প্রোফাইল ছবি ও একাউন্ট তথ্য')}
             </h3>
+
+            {/* Profile Photo Upload Field */}
+            <ImageUpload
+              value={avatarUrl}
+              onChange={setAvatarUrl}
+              label={t('Profile Photo (প্রোফাইল ছবি)', 'প্রোফাইল ছবি (Profile Photo)')}
+              subLabel={t('Drag & drop your photo or click to browse (JPG, PNG, WebP max 8MB)', 'ছবি ড্র্যাগ অ্যান্ড ড্রপ করুন অথবা ব্রাউজ করতে ক্লিক করুন (সর্বোচ্চ ৮ এমবি)')}
+            />
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Title</label>

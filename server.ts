@@ -12,6 +12,7 @@ import doctorRoutes from './server/routes/doctorRoutes.js';
 import publicRoutes from './server/routes/publicRoutes.js';
 import appointmentRoutes from './server/routes/appointmentRoutes.js';
 import testRoutes from './server/routes/testRoutes.js';
+import uploadRoutes from './server/routes/uploadRoutes.js';
 
 const __filename = typeof fileURLToPath === 'function' && import.meta?.url ? fileURLToPath(import.meta.url) : '';
 const currentDir = typeof __dirname !== 'undefined' ? __dirname : (__filename ? path.dirname(__filename) : process.cwd());
@@ -23,10 +24,18 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Global Middlewares
-  app.use(express.json());
+  // Global Middlewares with increased size limit for photo uploads
+  app.use(express.json({ limit: '15mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
   app.use(cookieParser());
   app.use(authMiddleware);
+
+  // Serve static uploaded photos
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsDir));
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -39,6 +48,7 @@ async function startServer() {
   app.use('/api/doctor', doctorRoutes);
   app.use('/api/public', publicRoutes);
   app.use('/api/appointments', appointmentRoutes);
+  app.use('/api/upload', uploadRoutes);
   app.use('/api/test', testRoutes);
 
   // API 404 handler: guarantees unmatched API routes return JSON, not HTML
