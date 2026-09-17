@@ -28,6 +28,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView, onO
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setCurrentView('admin-dashboard')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-medium transition cursor-pointer ${
+                currentView === 'admin-dashboard'
+                  ? 'bg-amber-400 text-slate-950 font-bold'
+                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/30'
+              }`}
+              title="Open Admin Control Panel"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span>Admin Panel</span>
+            </button>
+            <button
               onClick={onOpenTestModal}
               className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition cursor-pointer text-[11px]"
             >
@@ -122,21 +134,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView, onO
               </button>
             )}
 
-            {user?.role === 'admin' && (
-              <button
-                onClick={() => setCurrentView('admin-dashboard')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-                  currentView === 'admin-dashboard'
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-600" />
-                  {t('Admin Panel', 'অ্যাডমিন প্যানেল')}
-                </span>
-              </button>
-            )}
+            <button
+              onClick={() => setCurrentView('admin-dashboard')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
+                currentView === 'admin-dashboard'
+                  ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+                <span>{t('Admin Panel', 'অ্যাডমিন')}</span>
+              </span>
+            </button>
           </nav>
 
           {/* User Auth actions */}

@@ -2,7 +2,7 @@ import React from 'react';
 import { Stethoscope, ShieldCheck, Clock, MapPin, Phone } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
-export const Footer: React.FC = () => {
+export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNavigate }) => {
   const { t } = useAuth();
 
   return (
@@ -35,10 +35,9 @@ export const Footer: React.FC = () => {
               {t('For Patients', 'রোগীদের জন্য')}
             </h4>
             <ul className="space-y-2">
-              <li><span className="hover:text-white transition cursor-pointer">{t('Search Specialist Doctors', 'বিশেষজ্ঞ ডাক্তার খুঁজুন')}</span></li>
-              <li><span className="hover:text-white transition cursor-pointer">{t('Book Chamber Serial', 'চেম্বার সিরিয়াল বুক করুন')}</span></li>
-              <li><span className="hover:text-white transition cursor-pointer">{t('Check Serial Status', 'সিরিয়াল স্ট্যাটাস চেক করুন')}</span></li>
-              <li><span className="hover:text-white transition cursor-pointer">{t('Download Appointment Slip', 'অ্যাপয়েন্টমেন্ট স্লিপ ডাউনলোড')}</span></li>
+              <li><button onClick={() => onNavigate?.('doctors')} className="hover:text-white transition cursor-pointer text-left">{t('Search Specialist Doctors', 'বিশেষজ্ঞ ডাক্তার খুঁজুন')}</button></li>
+              <li><button onClick={() => onNavigate?.('doctors')} className="hover:text-white transition cursor-pointer text-left">{t('Book Chamber Serial', 'চেম্বার সিরিয়াল বুক করুন')}</button></li>
+              <li><button onClick={() => onNavigate?.('patient-dashboard')} className="hover:text-white transition cursor-pointer text-left">{t('Check Serial Status', 'সিরিয়াল স্ট্যাটাস চেক করুন')}</button></li>
             </ul>
           </div>
 
@@ -47,18 +46,29 @@ export const Footer: React.FC = () => {
               {t('For Doctors & Clinics', 'ডাক্তার ও ক্লিনিকের জন্য')}
             </h4>
             <ul className="space-y-2">
-              <li><span className="hover:text-white transition cursor-pointer">{t('Doctor Registration', 'ডাক্তার রেজিস্ট্রেশন')}</span></li>
-              <li><span className="hover:text-white transition cursor-pointer">{t('Manage Chambers & Schedules', 'চেম্বার ও সময়সূচী নির্ধারণ')}</span></li>
-              <li><span className="hover:text-white transition cursor-pointer">{t('Live Serial & Queue Management', 'লাইভ সিরিয়াল ব্যবস্থাপনা')}</span></li>
-              <li><span className="hover:text-white transition cursor-pointer">{t('Double Booking Safeguards', 'ডাবল বুকিং সুরক্ষা')}</span></li>
+              <li><button onClick={() => onNavigate?.('register-doctor')} className="hover:text-white transition cursor-pointer text-left">{t('Doctor Registration', 'ডাক্তার রেজিস্ট্রেশন')}</button></li>
+              <li><button onClick={() => onNavigate?.('doctor-dashboard')} className="hover:text-white transition cursor-pointer text-left">{t('Manage Chambers & Schedules', 'চেম্বার ও সময়সূচী নির্ধারণ')}</button></li>
+              <li><button onClick={() => onNavigate?.('doctor-dashboard')} className="hover:text-white transition cursor-pointer text-left">{t('Live Serial & Queue Management', 'লাইভ সিরিয়াল ব্যবস্থাপনা')}</button></li>
             </ul>
           </div>
 
           <div>
             <h4 className="text-white text-xs font-semibold uppercase tracking-wider mb-3">
-              {t('Chamber Support & Help', 'চেম্বার সাপোর্ট ও হেল্পলাইন')}
+              {t('Administration & Support', 'অ্যাডমিন ও সাপোর্ট')}
             </h4>
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2.5 text-xs">
+              <button
+                onClick={() => onNavigate?.('admin-dashboard')}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/20 font-medium transition cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-400" />
+                  <span>{t('Admin Panel Portal', 'অ্যাডমিন প্যানেল পোর্টাল')}</span>
+                </span>
+                <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-mono">
+                  Super Admin
+                </span>
+              </button>
               <p className="flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-emerald-400" />
                 <span>09612-DAKTAR (09612-325827)</span>
@@ -78,7 +88,14 @@ export const Footer: React.FC = () => {
         <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-500">
           <p>© {new Date().getFullYear()} Daktar Serial MVP. All rights reserved. Phase 1 Core Booking Engine.</p>
           <div className="flex items-center gap-4 text-[11px]">
-            <span>Double Booking Protection Enabled</span>
+            <button
+              onClick={() => onNavigate?.('admin-dashboard')}
+              className="hover:text-amber-400 transition cursor-pointer underline underline-offset-4"
+            >
+              Admin Portal
+            </button>
+            <span>•</span>
+            <span>Double Booking Protection</span>
             <span>•</span>
             <span>ACID Transactional Guarantee</span>
           </div>

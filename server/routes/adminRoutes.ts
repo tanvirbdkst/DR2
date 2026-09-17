@@ -26,13 +26,18 @@ router.get('/stats', async (req, res) => {
       LIMIT 8
     `);
 
+    const statPayload = {
+      totalDoctors: Number(totalDocs[0]?.count) || 0,
+      pendingDoctors: Number(pendingDocs[0]?.count) || 0,
+      approvedDoctors: Number(approvedDocs[0]?.count) || 0,
+      totalPatients: Number(totalPats[0]?.count) || 0,
+      totalAppointments: Number(totalAppts[0]?.count) || 0,
+      todayAppointments: Number(todayAppts[0]?.count) || 0,
+    };
+
     res.json({
-      totalDoctors: totalDocs[0]?.count || 0,
-      pendingDoctors: pendingDocs[0]?.count || 0,
-      approvedDoctors: approvedDocs[0]?.count || 0,
-      totalPatients: totalPats[0]?.count || 0,
-      totalAppointments: totalAppts[0]?.count || 0,
-      todayAppointments: todayAppts[0]?.count || 0,
+      ...statPayload,
+      stats: statPayload,
       recentLogs,
     });
   } catch (err: any) {
@@ -64,6 +69,26 @@ router.get('/doctors', async (req, res) => {
 
     const [doctors] = await pool.query<RowDataPacket[]>(query, params);
     res.json({ doctors });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2b. Pending Doctors List
+router.get('/doctors/pending', async (req, res) => {
+  try {
+    const query = `
+      SELECT d.*, u.name, u.email, u.phone, u.avatar_url, u.status as user_status,
+             s.name as specialty_name, s.name_bn as specialty_name_bn,
+             (SELECT COUNT(*) FROM chambers c WHERE c.doctor_id = d.id) as chamber_count
+      FROM doctors d
+      JOIN users u ON d.user_id = u.id
+      LEFT JOIN specialties s ON d.specialty_id = s.id
+      WHERE d.approval_status = 'pending'
+      ORDER BY d.created_at DESC
+    `;
+    const [doctors] = await pool.query<RowDataPacket[]>(query);
+    res.json({ pendingDoctors: doctors, doctors });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -240,6 +265,57 @@ router.post('/doctors/:id/suspend', async (req, res) => {
   }
 });
 
+// 6b. Generic Status Update (PATCH /doctors/:id/status)
+router.patch('/doctors/:id/status', async (req, res) => {
+  try {
+    const doctorId = req.params.id;
+    const { status, reason } = req.body;
+    const adminUser = (req as any).user;
+
+    if (!['approved', 'pending', 'rejected', 'suspended'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid doctor status.' });
+    }
+
+    const [docRows] = await pool.query<RowDataPacket[]>('SELECT user_id, bmdc_number FROM doctors WHERE id = ?', [doctorId]);
+    const doctor = docRows[0] as any;
+    if (!doctor) {
+      return res.status(404).json({ error: 'Doctor not found' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const userStatus = status === 'approved' ? 'active' : (status === 'suspended' ? 'suspended' : 'pending');
+
+      await conn.execute(`
+        UPDATE doctors
+        SET approval_status = ?, rejection_reason = ?, approved_at = CASE WHEN ? = 'approved' THEN CURRENT_TIMESTAMP ELSE approved_at END, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [status, reason || null, status, doctorId]);
+
+      await conn.execute(`
+        UPDATE users
+        SET status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [userStatus, doctor.user_id]);
+
+      await conn.commit();
+    } catch (txErr) {
+      await conn.rollback();
+      throw txErr;
+    } finally {
+      conn.release();
+    }
+
+    await logActivity(adminUser.id, 'UPDATE_DOCTOR_STATUS', `Updated doctor ID ${doctorId} status to ${status}`);
+
+    res.json({ message: `Doctor status updated to ${status} successfully.` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 7. Patient List
 router.get('/patients', async (req, res) => {
   try {
@@ -317,6 +393,31 @@ router.delete('/specialties/:id', async (req, res) => {
     const { id } = req.params;
     await pool.execute('DELETE FROM specialties WHERE id = ?', [id]);
     res.json({ message: 'Specialty deleted' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. All Appointments (Serials) Management
+router.get('/appointments', async (req, res) => {
+  try {
+    const [appointments] = await pool.query<RowDataPacket[]>(`
+      SELECT a.*, 
+             u_doc.name as doctor_name, u_doc.phone as doctor_phone,
+             u_pat.name as patient_user_name, u_pat.phone as patient_user_phone,
+             c.name as chamber_name, c.address as chamber_address,
+             s.name as specialty_name
+      FROM appointments a
+      JOIN doctors d ON a.doctor_id = d.id
+      JOIN users u_doc ON d.user_id = u_doc.id
+      LEFT JOIN users u_pat ON a.patient_id = u_pat.id
+      JOIN chambers c ON a.chamber_id = c.id
+      LEFT JOIN specialties s ON d.specialty_id = s.id
+      ORDER BY a.schedule_date DESC, a.serial_number ASC
+      LIMIT 100
+    `);
+
+    res.json({ appointments });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
