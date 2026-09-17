@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { Navbar } from './components/Navbar.js';
 import { Footer } from './components/Footer.js';
@@ -14,9 +14,25 @@ import { PatientDashboardPage } from './pages/PatientDashboardPage.js';
 import { DoctorDashboardPage } from './pages/DoctorDashboardPage.js';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.js';
 
+function getViewFromUrl(): string {
+  if (typeof window === 'undefined') return 'home';
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+
+  if (path.includes('/admin') || hash.includes('admin')) return 'admin-dashboard';
+  if (path.includes('/doctor-dashboard') || hash.includes('doctor-dashboard')) return 'doctor-dashboard';
+  if (path.includes('/patient-dashboard') || hash.includes('patient-dashboard')) return 'patient-dashboard';
+  if (path.includes('/doctors') || hash.includes('doctors')) return 'doctors';
+  if (path.includes('/login') || hash.includes('login')) return 'login';
+  if (path.includes('/register-patient') || hash.includes('register-patient')) return 'register-patient';
+  if (path.includes('/register-doctor') || hash.includes('register-doctor')) return 'register-doctor';
+
+  return 'home';
+}
+
 function MainApp() {
   const { user } = useAuth();
-  const [currentView, setCurrentView] = useState<string>('home');
+  const [currentView, setCurrentView] = useState<string>(getViewFromUrl);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
   const [searchFilters, setSearchFilters] = useState<{ search: string; specialty: string; location: string }>({
     search: '',
@@ -26,8 +42,34 @@ function MainApp() {
   const [lastBookingData, setLastBookingData] = useState<any>(null);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const detected = getViewFromUrl();
+      if (detected !== currentView) {
+        setCurrentView(detected);
+      }
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, [currentView]);
+
   const handleNavigate = (view: string) => {
     setCurrentView(view);
+    try {
+      if (view === 'home') {
+        window.history.pushState({}, '', '/');
+      } else if (view === 'admin-dashboard') {
+        window.history.pushState({}, '', '/admin');
+      } else {
+        window.history.pushState({}, '', `/${view}`);
+      }
+    } catch {
+      // Fallback if pushState fails
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -129,11 +171,11 @@ function MainApp() {
         )}
 
         {currentView === 'admin-dashboard' && (
-          <AdminDashboardPage />
+          <AdminDashboardPage onNavigate={handleNavigate} />
         )}
       </main>
 
-      <Footer />
+      <Footer onNavigate={handleNavigate} />
 
       <TestRunnerModal
         isOpen={isTestModalOpen}
