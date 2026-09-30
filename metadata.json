@@ -1,0 +1,6 @@
+{
+  "name": "Daktar Serial",
+  "description": "Core doctor chamber serial booking and appointment management system",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1176 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Stethoscope, Building2, Calendar, Clock, Plus, Users, CheckCircle2,
+  AlertCircle, X, Check, Filter, ChevronRight, Phone, MapPin, Award, ShieldAlert,
+  Camera, Save, User as UserIcon, Sparkles
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext.js';
+import { DoctorProfile, Chamber, Schedule, Appointment, Specialty } from '../types.js';
+import { ImageUpload } from '../components/ImageUpload.js';
+
+export const DoctorDashboardPage: React.FC = () => {
+  const { user, refreshUser, t } = useAuth();
+
+  const [activeTab, setActiveTab] = useState<'appointments' | 'chambers' | 'schedules' | 'profile'>('appointments');
+  const [profile, setProfile] = useState<DoctorProfile | null>(null);
+  const [chambers, setChambers] = useState<Chamber[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters for appointments
+  const [filterChamberId, setFilterChamberId] = useState<string>('');
+  const [filterDate, setFilterDate] = useState<string>('');
+
+  // Modals
+  const [showAddChamberModal, setShowAddChamberModal] = useState(false);
+  const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
+
+  // Form states for Add Chamber
+  const [newChamberName, setNewChamberName] = useState('');
+  const [newChamberAddress, setNewChamberAddress] = useState('');
+  const [newChamberCity, setNewChamberCity] = useState('Dhaka');
+  const [newChamberArea, setNewChamberArea] = useState('');
+  const [newChamberPhone, setNewChamberPhone] = useState('');
+  const [newChamberFee, setNewChamberFee] = useState('1000');
+  const [savingChamber, setSavingChamber] = useState(false);
+
+  // Form states for Add Schedule
+  const [newSchChamberId, setNewSchChamberId] = useState<string>('');
+  const [newSchDay, setNewSchDay] = useState('Friday');
+  const [newSchStart, setNewSchStart] = useState('17:00');
+  const [newSchEnd, setNewSchEnd] = useState('20:00');
+  const [newSchMax, setNewSchMax] = useState('20');
+  const [newSchDuration, setNewSchDuration] = useState('10');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
+  // Form states for Profile & Photo Update
+  const [editAvatarUrl, setEditAvatarUrl] = useState('');
+  const [editTitle, setEditTitle] = useState('Dr.');
+  const [editQualification, setEditQualification] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editFee, setEditFee] = useState('800');
+  const [allSpecialties, setAllSpecialties] = useState<Specialty[]>([]);
+  const [editSpecialtyIds, setEditSpecialtyIds] = useState<number[]>([]);
+  const [specialtySearch, setSpecialtySearch] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const toggleSpecialty = (id: number) => {
+    setEditSpecialtyIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const removeSpecialty = (id: number) => {
+    setEditSpecialtyIds((prev) => prev.filter((item) => item !== id));
+  };
+
+  // Action status message
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      fetch('/api/public/specialties')
+        .then((r) => r.json())
+        .then((data) => setAllSpecialties(data.specialties || []))
+        .catch(console.error);
+
+      const [profRes, chamRes, schRes] = await Promise.all([
+        fetch('/api/doctor/profile'),
+        fetch('/api/doctor/chambers'),
+        fetch('/api/doctor/schedules'),
+      ]);
+
+      if (profRes.ok) {
+        const pData = await profRes.json();
+        setProfile(pData.doctor);
+        if (pData.doctor) {
+          setEditAvatarUrl(pData.doctor.avatar_url || '');
+          setEditTitle(pData.doctor.title || 'Dr.');
+          setEditQualification(pData.doctor.qualification || '');
+          setEditBio(pData.doctor.bio || '');
+          setEditPhone(pData.doctor.phone || '');
+          setEditFee(String(pData.doctor.consultation_fee || 800));
+
+          const existingSpecIds: number[] = pData.doctor.specialty_ids ||
+            (pData.doctor.specialties ? pData.doctor.specialties.map((s: any) => s.id) : [pData.doctor.specialty_id].filter(Boolean));
+          setEditSpecialtyIds(existingSpecIds);
+        }
+        if (Array.isArray(pData.chambers) && pData.chambers.length > 0) {
+          setChambers(pData.chambers);
+          if (!newSchChamberId) {
+            setNewSchChamberId(String(pData.chambers[0].id));
+          }
+        }
+        if (Array.isArray(pData.schedules)) {
+          setSchedules(pData.schedules);
+        }
+      }
+
+      if (chamRes.ok) {
+        const cData = await chamRes.json();
+        if (Array.isArray(cData.chambers)) {
+          setChambers(cData.chambers);
+          if (cData.chambers.length > 0 && !newSchChamberId) {
+            setNewSchChamberId(String(cData.chambers[0].id));
+          }
+        }
+      }
+
+      if (schRes.ok) {
+        const sData = await schRes.json();
+        if (Array.isArray(sData.schedules)) {
+          setSchedules(sData.schedules);
+        }
+      }
+
+      // Fetch appointments
+      const apptRes = await fetch('/api/doctor/appointments');
+      if (apptRes.ok) {
+        const aData = await apptRes.json();
+        setAppointments(aData.appointments || []);
+      }
+    } catch (err) {
+      console.error('Error fetching doctor dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const handleCreateChamber = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChamberName.trim()) {
+      setNotification({ type: 'error', message: 'Chamber name is required.' });
+      return;
+    }
+    if (!newChamberAddress.trim()) {
+      setNotification({ type: 'error', message: 'Chamber address is required.' });
+      return;
+    }
+
+    setSavingChamber(true);
+    setNotification(null);
+    try {
+      const res = await fetch('/api/doctor/chambers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newChamberName.trim(),
+          address: newChamberAddress.trim(),
+          city: (newChamberCity || 'Dhaka').trim(),
+          area: (newChamberArea || newChamberCity || 'Dhaka').trim(),
+          phone: newChamberPhone.trim(),
+          consultationFee: Number(newChamberFee) || 500,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNotification({ type: 'success', message: 'Chamber added successfully!' });
+        setShowAddChamberModal(false);
+        setNewChamberName('');
+        setNewChamberAddress('');
+        setNewChamberArea('');
+        setNewChamberPhone('');
+        await fetchDashboardData();
+        setActiveTab('chambers');
+      } else {
+        setNotification({ type: 'error', message: data.error || 'Failed to add chamber' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Error occurred while saving chamber' });
+    } finally {
+      setSavingChamber(false);
+    }
+  };
+
+  const handleDeleteChamber = async (chamberId: number) => {
+    if (!confirm('Are you sure you want to remove this chamber? Associated schedules will also be removed.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/doctor/chambers/${chamberId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setNotification({ type: 'success', message: 'Chamber deleted successfully' });
+        await fetchDashboardData();
+      } else {
+        const d = await res.json();
+        setNotification({ type: 'error', message: d.error || 'Failed to delete chamber' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message });
+    }
+  };
+
+  const handleCreateSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSchedule(true);
+    try {
+      const res = await fetch('/api/doctor/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chamberId: Number(newSchChamberId),
+          dayOfWeek: newSchDay,
+          startTime: newSchStart,
+          endTime: newSchEnd,
+          maxSerials: Number(newSchMax),
+          slotDurationMinutes: Number(newSchDuration),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNotification({ type: 'success', message: 'Weekly schedule configured! Serials are now generated.' });
+        setShowAddScheduleModal(false);
+        fetchDashboardData();
+      } else {
+        setNotification({ type: 'error', message: data.error || 'Failed to configure schedule' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (editSpecialtyIds.length === 0) {
+      setNotification({
+        type: 'error',
+        message: t('Please select at least one medical specialty.', 'অনুগ্রহ করে অন্তত একটি স্পেশালিটি নির্বাচন করুন।'),
+      });
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const res = await fetch('/api/doctor/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          avatarUrl: editAvatarUrl,
+          title: editTitle,
+          qualification: editQualification,
+          bio: editBio,
+          phone: editPhone,
+          consultationFee: Number(editFee),
+          specialtyIds: editSpecialtyIds,
+          specialtyId: editSpecialtyIds[0] || null,
+        }),
+      });
+      if (res.ok) {
+        setNotification({
+          type: 'success',
+          message: t('Doctor profile and photo updated successfully!', 'ডাক্তারের প্রোফাইল এবং ছবি সফলভাবে আপডেট করা হয়েছে!'),
+        });
+        await fetchDashboardData();
+        await refreshUser();
+      } else {
+        const d = await res.json();
+        setNotification({ type: 'error', message: d.error || 'Failed to update profile' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Error updating profile' });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleUpdateStatus = async (appointmentId: number, status: string) => {
+    try {
+      const res = await fetch(`/api/doctor/appointments/${appointmentId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        setNotification({ type: 'success', message: `Appointment status updated to ${status}` });
+        // Refresh appointments
+        const apptRes = await fetch('/api/doctor/appointments');
+        if (apptRes.ok) {
+          const aData = await apptRes.json();
+          setAppointments(aData.appointments || []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const filteredAppointments = appointments.filter((a) => {
+    if (filterChamberId && String(a.chamber_id) !== filterChamberId) return false;
+    if (filterDate && a.schedule_date !== filterDate) return false;
+    return true;
+  });
+
+  const isPending = profile?.status === 'pending';
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* Pending Approval Warning if applicable */}
+      {isPending && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 shadow-xs">
+          <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs sm:text-sm">
+            <h4 className="font-bold">Doctor Application Pending Admin Approval</h4>
+            <p className="text-amber-800 mt-0.5">
+              Your profile is currently awaiting verification by the administrator. Once approved, your chambers and schedules will appear in public patient search results.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Notification toast */}
+      {notification && (
+        <div
+          className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
+            notification.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-rose-50 border-rose-200 text-rose-800'
+          }`}
+        >
+          <span>{notification.message}</span>
+          <button onClick={() => setNotification(null)} className="font-bold underline cursor-pointer">
+            Close
+          </button>
+        </div>
+      )}
+
+      {/* Doctor Header Profile */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div
+            onClick={() => setActiveTab('profile')}
+            title={t('Click to edit profile & change photo', 'প্রোফাইল ছবি পরিবর্তন করতে ক্লিক করুন')}
+            className="relative group cursor-pointer"
+          >
+            <img
+              src={profile?.avatar_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&auto=format&fit=crop&q=80'}
+              alt={profile?.name}
+              className="w-16 h-16 rounded-2xl object-cover border border-slate-100 shadow-xs group-hover:opacity-90 transition"
+            />
+            <div
+              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-600 group-hover:bg-emerald-700 text-white flex items-center justify-center shadow-md border-2 border-white transition"
+            >
+              <Camera className="w-3 h-3" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900">
+                {profile?.title} {profile?.name}
+              </h1>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                  profile?.status === 'approved'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}
+              >
+                {profile?.status || 'Active'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 font-medium mt-0.5">{profile?.qualification}</p>
+            <p className="text-xs text-slate-400 font-mono mt-0.5">BMDC Reg: {profile?.bmdc_number}</p>
+            {profile?.specialties && profile.specialties.length > 0 ? (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {profile.specialties.map((s) => (
+                  <span
+                    key={s.id}
+                    className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  >
+                    {s.name} {s.name_bn && <span className="opacity-75 text-[9px] ml-0.5">({s.name_bn})</span>}
+                  </span>
+                ))}
+              </div>
+            ) : profile?.specialty_name ? (
+              <div className="mt-1.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  {profile.specialty_name} {profile.specialty_name_bn && <span className="opacity-75 text-[9px] ml-0.5">({profile.specialty_name_bn})</span>}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddChamberModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Chamber</span>
+          </button>
+          <button
+            onClick={() => setShowAddScheduleModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Schedule</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-slate-200">
+        <nav className="flex flex-wrap space-x-6 sm:space-x-8 text-xs sm:text-sm font-semibold">
+          <button
+            onClick={() => setActiveTab('appointments')}
+            className={`pb-3 border-b-2 transition cursor-pointer ${
+              activeTab === 'appointments'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Appointments & Queue ({appointments.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('chambers')}
+            className={`pb-3 border-b-2 transition cursor-pointer ${
+              activeTab === 'chambers'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Chambers ({chambers.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('schedules')}
+            className={`pb-3 border-b-2 transition cursor-pointer ${
+              activeTab === 'schedules'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Weekly Schedules ({schedules.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`pb-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'profile'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Camera className="w-4 h-4" />
+            <span>{t('Profile & Photo (ছবি ও তথ্য)', 'প্রোফাইল ও ছবি')}</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab 1: Appointments */}
+      {activeTab === 'appointments' && (
+        <div className="space-y-6">
+          {/* Filters Bar */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-semibold text-slate-600">Filter Chamber:</span>
+                <select
+                  value={filterChamberId}
+                  onChange={(e) => setFilterChamberId(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white"
+                >
+                  <option value="">All Chambers</option>
+                  {chambers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-slate-600">Date:</span>
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white"
+                />
+              </div>
+
+              {(filterChamberId || filterDate) && (
+                <button
+                  onClick={() => {
+                    setFilterChamberId('');
+                    setFilterDate('');
+                  }}
+                  className="text-emerald-600 font-semibold hover:underline"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            <div className="text-slate-500">
+              Showing <strong className="text-slate-900">{filteredAppointments.length}</strong> serial(s)
+            </div>
+          </div>
+
+          {/* Appointments Table */}
+          {filteredAppointments.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-md mx-auto space-y-2">
+              <Calendar className="w-10 h-10 text-slate-300 mx-auto" />
+              <h3 className="text-base font-bold text-slate-800">No Patient Appointments Found</h3>
+              <p className="text-xs text-slate-500">
+                Appointments booked by patients for your configured serial slots will appear here in real-time.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-50 border-b border-slate-200 uppercase font-semibold text-[10px] text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Serial</th>
+                      <th className="px-4 py-3">Appointment ID</th>
+                      <th className="px-4 py-3">Patient</th>
+                      <th className="px-4 py-3">Chamber</th>
+                      <th className="px-4 py-3">Date & Time</th>
+                      <th className="px-4 py-3">Fee</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {filteredAppointments.map((appt) => (
+                      <tr key={appt.id} className="hover:bg-slate-50/80 transition">
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 text-emerald-900 font-bold text-sm">
+                            {appt.serial_number < 10 ? `0${appt.serial_number}` : appt.serial_number}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono font-bold text-slate-800">
+                          {appt.appointment_id}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-bold text-slate-900">{appt.patient_name}</p>
+                          <p className="text-[11px] text-slate-400">{appt.patient_phone}</p>
+                          {appt.patient_age && (
+                            <p className="text-[10px] text-slate-400">
+                              {appt.patient_age} yrs • {appt.patient_gender}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-800">{appt.chamber_name}</p>
+                          <p className="text-[10px] text-slate-400">{appt.chamber_area}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-800">{appt.schedule_date}</p>
+                          <p className="text-[11px] text-slate-500">{appt.appointment_time}</p>
+                        </td>
+                        <td className="px-4 py-3 font-bold text-emerald-700">
+                          ৳{appt.consultation_fee}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                              appt.status === 'confirmed'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : appt.status === 'completed'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-rose-50 text-rose-700'
+                            }`}
+                          >
+                            {appt.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right space-x-1.5">
+                          {appt.status === 'confirmed' && (
+                            <>
+                              <button
+                                onClick={() => handleUpdateStatus(appt.id, 'completed')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold cursor-pointer"
+                              >
+                                Completed
+                              </button>
+                              <button
+                                onClick={() => handleUpdateStatus(appt.id, 'cancelled')}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 text-[11px] font-semibold cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Chambers */}
+      {activeTab === 'chambers' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-900">Your Practice Chambers</h3>
+            <button
+              onClick={() => setShowAddChamberModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Chamber</span>
+            </button>
+          </div>
+
+          {chambers.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <h4 className="font-bold text-slate-800 text-sm">No chambers added yet</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Add your clinic or hospital consultation chambers to let patients find you and book serials.
+              </p>
+              <button
+                onClick={() => setShowAddChamberModal(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Your First Chamber</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {chambers.map((chamber) => (
+                <div
+                  key={chamber.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 relative group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                        Fee: ৳{chamber.consultation_fee}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteChamber(chamber.id)}
+                        title="Delete chamber"
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">{chamber.name}</h4>
+                    <p className="text-xs text-slate-600 mt-1 flex items-start gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                      <span>{chamber.address}, {chamber.area}, {chamber.city}</span>
+                    </p>
+                    {chamber.phone && (
+                      <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{chamber.phone}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Schedules */}
+      {activeTab === 'schedules' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-900">Configured Weekly Consultation Hours</h3>
+            <button
+              onClick={() => setShowAddScheduleModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Schedule</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {schedules.map((sch) => (
+              <div
+                key={sch.id}
+                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-bold text-xs">
+                    {sch.day_of_week}
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                    {sch.max_serials} Max Serials
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-800 text-xs">
+                    {sch.chamber_name || 'Chamber'}
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 font-medium">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{sch.start_time} – {sch.end_time}</span>
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Slot duration: {sch.slot_duration_minutes} mins / patient
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Doctor Profile & Photo */}
+      {activeTab === 'profile' && (
+        <div className="max-w-3xl space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">
+                {t('Doctor Profile & Photo Settings', 'ডাক্তারের প্রোফাইল ও ছবির সেটিংস')}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {t('Update your profile photo, consultation fee, bio and qualifications.', 'আপনার প্রোফাইল ছবি, ভিজিট ফি, পরিচিতি ও ডিগ্রি আপডেট করুন।')}
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-6">
+              {/* Photo Upload with Drag & Drop & Click */}
+              <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200 space-y-3">
+                <ImageUpload
+                  value={editAvatarUrl}
+                  onChange={setEditAvatarUrl}
+                  label={t('Doctor Profile Photo (প্রোফাইল ছবি)', 'ডাক্তারের প্রোফাইল ছবি (Profile Photo)')}
+                  subLabel={t('Drag & drop or click to change your doctor picture (JPG, PNG, WebP max 8MB)', 'ছবি ড্র্যাগ অ্যান্ড ড্রপ করুন অথবা ব্রাউজ করতে ক্লিক করুন (সর্বোচ্চ ৮ এমবি)')}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Title', 'উপাধি')}
+                  </label>
+                  <select
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                  >
+                    <option value="Dr.">Dr.</option>
+                    <option value="Prof. Dr.">Prof. Dr.</option>
+                    <option value="Assoc. Prof. Dr.">Assoc. Prof. Dr.</option>
+                    <option value="Asst. Prof. Dr.">Asst. Prof. Dr.</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Phone Number', 'ফোন নম্বর')}
+                  </label>
+                  <input
+                    type="tel"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Qualifications & Degrees', 'ডিগ্রি ও শিক্ষাগত যোগ্যতা')}
+                  </label>
+                  <input
+                    type="text"
+                    value={editQualification}
+                    onChange={(e) => setEditQualification(e.target.value)}
+                    placeholder="e.g. MBBS, FCPS (Medicine), MACP (USA)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {t('Default Consultation Fee (৳)', 'ভিজিট ফি (টাকা)')}
+                  </label>
+                  <input
+                    type="number"
+                    value={editFee}
+                    onChange={(e) => setEditFee(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden font-bold text-emerald-700"
+                  />
+                </div>
+              </div>
+
+              {/* Multi-Select Medical Specialties */}
+              <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800">
+                      {t('Medical Specialties *', 'মেডিকেল স্পেশালিটি *')} <span className="text-[11px] font-normal text-slate-500">({t('Multi-select enabled: Select 1 or more specialties', 'একাধিক স্পেশালিটি নির্বাচন করতে পারেন')})</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      {t('e.g. Cardiology + Medicine (একই ডাক্তারের একাধিক বিভাগ থাকতে পারে)', 'যেমন: Cardiology + Medicine')}
+                    </p>
+                  </div>
+                  {editSpecialtyIds.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        {editSpecialtyIds.length} Selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditSpecialtyIds([])}
+                        className="text-[11px] text-rose-600 hover:underline font-medium cursor-pointer"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Chips */}
+                {editSpecialtyIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {editSpecialtyIds.map((id) => {
+                      const spec = allSpecialties.find((s) => s.id === id);
+                      if (!spec) return null;
+                      return (
+                        <span
+                          key={spec.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600 text-white shadow-2xs animate-in fade-in duration-150"
+                        >
+                          <span>{spec.name}</span>
+                          {spec.name_bn && (
+                            <span className="text-[10px] opacity-80 font-normal">({spec.name_bn})</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeSpecialty(spec.id)}
+                            className="hover:bg-emerald-700 rounded p-0.5 ml-0.5 transition cursor-pointer"
+                            title="Remove"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Quick Search */}
+                <div className="relative pt-1">
+                  <input
+                    type="text"
+                    value={specialtySearch}
+                    onChange={(e) => setSpecialtySearch(e.target.value)}
+                    placeholder={t('Search specialty (e.g. Cardiology, Medicine, Pediatrics)...', 'স্পেশালিটি খুঁজুন...')}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                  />
+                </div>
+
+                {/* Checkbox Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1 border border-slate-200 rounded-xl bg-white">
+                  {allSpecialties
+                    .filter((s) =>
+                      !specialtySearch.trim() ||
+                      s.name.toLowerCase().includes(specialtySearch.toLowerCase()) ||
+                      (s.name_bn && s.name_bn.includes(specialtySearch))
+                    )
+                    .map((s) => {
+                      const isSelected = editSpecialtyIds.includes(s.id);
+                      return (
+                        <label
+                          key={s.id}
+                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition select-none ${
+                            isSelected
+                              ? 'border-emerald-500 bg-emerald-50/60 font-semibold text-emerald-950'
+                              : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSpecialty(s.id)}
+                            className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 w-3.5 h-3.5 cursor-pointer"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate">{s.name}</span>
+                            {s.name_bn && (
+                              <span className="block text-[10px] text-slate-400 font-normal truncate">
+                                {s.name_bn}
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+
+              <div className="text-xs">
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {t('Professional Biography & Experience', 'অভিজ্ঞতা ও সংক্ষিপ্ত পরিচিতি')}
+                </label>
+                <textarea
+                  rows={4}
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  placeholder="Doctor background, specialization details, hospital affiliations..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="submit"
+                  disabled={savingProfile}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{savingProfile ? t('Saving Changes...', 'সংরক্ষণ করা হচ্ছে...') : t('Save Profile & Photo', 'প্রোফাইল ও ছবি সংরক্ষণ করুন')}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Chamber Modal */}
+      {showAddChamberModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Add New Chamber</h3>
+              <button
+                onClick={() => setShowAddChamberModal(false)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateChamber} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Chamber Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newChamberName}
+                  onChange={(e) => setNewChamberName(e.target.value)}
+                  placeholder="e.g. Ibn Sina Diagnostic, Badda"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Address *</label>
+                <input
+                  type="text"
+                  required
+                  value={newChamberAddress}
+                  onChange={(e) => setNewChamberAddress(e.target.value)}
+                  placeholder="Street & Building info"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">City</label>
+                  <input
+                    type="text"
+                    value={newChamberCity}
+                    onChange={(e) => setNewChamberCity(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Area</label>
+                  <input
+                    type="text"
+                    value={newChamberArea}
+                    onChange={(e) => setNewChamberArea(e.target.value)}
+                    placeholder="e.g. Badda"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Chamber Phone</label>
+                  <input
+                    type="tel"
+                    value={newChamberPhone}
+                    onChange={(e) => setNewChamberPhone(e.target.value)}
+                    placeholder="e.g. +8801900000000"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Consultation Fee (৳)</label>
+                  <input
+                    type="number"
+                    value={newChamberFee}
+                    onChange={(e) => setNewChamberFee(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddChamberModal(false)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingChamber}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  {savingChamber ? 'Saving...' : 'Save Chamber'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Schedule Modal */}
+      {showAddScheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Add Weekly Schedule</h3>
+              <button
+                onClick={() => setShowAddScheduleModal(false)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSchedule} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Select Chamber *</label>
+                <select
+                  required
+                  value={newSchChamberId}
+                  onChange={(e) => setNewSchChamberId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                >
+                  {chambers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Day of Week *</label>
+                <select
+                  value={newSchDay}
+                  onChange={(e) => setNewSchDay(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                >
+                  {['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Start Time (24h) *</label>
+                  <input
+                    type="time"
+                    required
+                    value={newSchStart}
+                    onChange={(e) => setNewSchStart(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">End Time (24h) *</label>
+                  <input
+                    type="time"
+                    required
+                    value={newSchEnd}
+                    onChange={(e) => setNewSchEnd(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Max Serials Per Day</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={newSchMax}
+                    onChange={(e) => setNewSchMax(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Slot Duration (Mins)</label>
+                  <input
+                    type="number"
+                    min="5"
+                    max="60"
+                    value={newSchDuration}
+                    onChange={(e) => setNewSchDuration(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddScheduleModal(false)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSchedule}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  {savingSchedule ? 'Configuring...' : 'Configure Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
