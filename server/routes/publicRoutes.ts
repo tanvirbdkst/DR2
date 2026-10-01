@@ -155,11 +155,13 @@ router.get('/doctors', async (req, res) => {
 // 3. Get Single Public Doctor Profile (Supports ID: 1 or slug: dr-tanvir-ahmad-1)
 router.get('/doctors/:id', async (req, res) => {
   try {
-    const rawParam = String(req.params.id || '').trim();
+    const cleanParam = decodeURIComponent(String(req.params.id || '').trim())
+      .split('?')[0]
+      .split('#')[0];
     let docRows: RowDataPacket[] = [];
 
-    // Case A: Parameter is numeric doctor ID
-    const numericId = Number(rawParam);
+    // Case A: Parameter is numeric doctor ID (e.g. 3)
+    const numericId = Number(cleanParam);
     if (!isNaN(numericId) && numericId > 0) {
       [docRows] = await pool.query<RowDataPacket[]>(`
         SELECT d.*, u.name, u.email, u.phone, u.avatar_url,
@@ -167,13 +169,15 @@ router.get('/doctors/:id', async (req, res) => {
         FROM doctors d
         JOIN users u ON d.user_id = u.id
         LEFT JOIN specialties s ON d.specialty_id = s.id
-        WHERE d.id = ? AND d.approval_status = 'approved' AND u.status = 'active'
+        WHERE d.id = ? AND u.status != 'deleted'
+        ORDER BY (d.approval_status = 'approved') DESC, (u.status = 'active') DESC
+        LIMIT 1
       `, [numericId]);
     }
 
-    // Case B: Slug ends with -<number> (e.g. dr-tanvir-ahmad-1)
+    // Case B: Slug ends with -<number> (e.g. dr-dr-test-rahman-3292-3 -> 3, dr-tanvir-ahmad-1 -> 1)
     if (docRows.length === 0) {
-      const match = rawParam.match(/-(\d+)$/);
+      const match = cleanParam.match(/-(\d+)$/);
       if (match) {
         const extractedId = Number(match[1]);
         if (!isNaN(extractedId) && extractedId > 0) {
@@ -183,29 +187,55 @@ router.get('/doctors/:id', async (req, res) => {
             FROM doctors d
             JOIN users u ON d.user_id = u.id
             LEFT JOIN specialties s ON d.specialty_id = s.id
-            WHERE d.id = ? AND d.approval_status = 'approved' AND u.status = 'active'
+            WHERE d.id = ? AND u.status != 'deleted'
+            ORDER BY (d.approval_status = 'approved') DESC, (u.status = 'active') DESC
+            LIMIT 1
           `, [extractedId]);
         }
       }
     }
 
-    // Case C: Fallback match doctor by clean name part from slug
+    // Case C: Match by any other numbers in slug (e.g. BMDC number "3292" or ID)
     if (docRows.length === 0) {
-      const nameGuess = rawParam
-        .replace(/^prof-dr-|^asst-prof-dr-|^assoc-prof-dr-|^dr-/, '')
-        .replace(/-\d+$/, '')
-        .replace(/-/g, ' ');
+      const allNumbers = cleanParam.match(/\d+/g);
+      if (allNumbers && allNumbers.length > 0) {
+        for (const numStr of allNumbers) {
+          const num = Number(numStr);
+          [docRows] = await pool.query<RowDataPacket[]>(`
+            SELECT d.*, u.name, u.email, u.phone, u.avatar_url,
+                   s.name as specialty_name, s.name_bn as specialty_name_bn, s.icon as specialty_icon
+            FROM doctors d
+            JOIN users u ON d.user_id = u.id
+            LEFT JOIN specialties s ON d.specialty_id = s.id
+            WHERE (d.bmdc_number = ? OR d.bmdc_number LIKE ? OR d.id = ?) AND u.status != 'deleted'
+            ORDER BY (d.approval_status = 'approved') DESC, (u.status = 'active') DESC
+            LIMIT 1
+          `, [numStr, `%${numStr}%`, num]);
 
-      if (nameGuess.trim().length >= 2) {
+          if (docRows.length > 0) break;
+        }
+      }
+    }
+
+    // Case D: Fallback match doctor by clean name part from slug
+    if (docRows.length === 0) {
+      const nameGuess = cleanParam
+        .replace(/^(?:prof-|asst-prof-|assoc-prof-|dr-)+/i, '')
+        .replace(/-\d+/g, '')
+        .replace(/-/g, ' ')
+        .trim();
+
+      if (nameGuess.length >= 2) {
         [docRows] = await pool.query<RowDataPacket[]>(`
           SELECT d.*, u.name, u.email, u.phone, u.avatar_url,
                  s.name as specialty_name, s.name_bn as specialty_name_bn, s.icon as specialty_icon
           FROM doctors d
           JOIN users u ON d.user_id = u.id
           LEFT JOIN specialties s ON d.specialty_id = s.id
-          WHERE u.name LIKE ? AND d.approval_status = 'approved' AND u.status = 'active'
+          WHERE LOWER(u.name) LIKE LOWER(?) AND u.status != 'deleted'
+          ORDER BY (d.approval_status = 'approved') DESC, (u.status = 'active') DESC
           LIMIT 1
-        `, [`%${nameGuess.trim()}%`]);
+        `, [`%${nameGuess}%`]);
       }
     }
 

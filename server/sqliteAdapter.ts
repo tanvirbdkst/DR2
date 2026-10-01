@@ -277,6 +277,21 @@ function ensureSqliteColumns(db: DatabaseSync) {
   addColumnIfMissing('appointments', 'created_by', 'INTEGER NULL');
 
   try {
+    db.prepare(`
+      UPDATE users
+      SET name = 'Dr. Test Rahman', avatar_url = 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=800'
+      WHERE id = 5;
+    `).run();
+    db.prepare(`
+      UPDATE doctors
+      SET bmdc_number = '3292'
+      WHERE id = 3;
+    `).run();
+  } catch {
+    // ignore
+  }
+
+  try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS doctor_specialties (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -462,17 +477,17 @@ function seedSqliteDatabase(db: DatabaseSync) {
     {
       userId: 5,
       doctorId: 3,
-      name: 'Dr. Rafiqul Islam',
-      email: 'dr.rafiq@daktarserial.com',
+      name: 'Dr. Test Rahman',
+      email: 'dr.test@daktarserial.com',
       phone: '+8801733000003',
       title: 'Dr.',
-      bmdc: 'BMDC-A-39182',
+      bmdc: '3292',
       specialtyId: 4,
       qualification: 'MBBS, DCH, MD (Pediatrics)',
       experienceYears: 14,
       bio: 'Senior Child Specialist with dedicated focus on infant nutrition, growth tracking, pediatric infectious diseases and childhood asthma.',
       fee: 700,
-      avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=256',
+      avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=800',
       chambers: [
         {
           id: 4,

@@ -33,6 +33,7 @@ const mysqlPool = mysql.createPool({
   dateStrings: true,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
+  connectTimeout: 2000,
 });
 
 /**

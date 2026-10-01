@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import { initDatabase } from './server/db.js';
@@ -14,9 +13,15 @@ import publicRoutes from './server/routes/publicRoutes.js';
 import appointmentRoutes from './server/routes/appointmentRoutes.js';
 import testRoutes from './server/routes/testRoutes.js';
 import uploadRoutes from './server/routes/uploadRoutes.js';
+import {
+  getDoctorForMeta,
+  getBaseUrl,
+  buildDoctorMetaData,
+  buildFallbackDoctorMetaData,
+  injectDoctorMetaIntoHtml
+} from './server/doctorMeta.js';
 
-const __filename = typeof fileURLToPath === 'function' && import.meta?.url ? fileURLToPath(import.meta.url) : '';
-const currentDir = typeof __dirname !== 'undefined' ? __dirname : (__filename ? path.dirname(__filename) : process.cwd());
+const currentDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
 async function startServer() {
   // Initialize Database Connection Pool
@@ -24,6 +29,9 @@ async function startServer() {
 
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+
+  // Trust proxy headers (LiteSpeed / Passenger / Cloudflare / Cloud Run reverse proxies)
+  app.set('trust proxy', true);
 
   // Global Middlewares with increased size limit for photo uploads
   app.use(express.json({ limit: '15mb' }));
@@ -85,16 +93,37 @@ async function startServer() {
 
     // If an asset was requested (e.g. /assets/*.js, *.css) but not found by express.static,
     // return 404 text instead of index.html.
-    // Returning index.html for JS/CSS causes browser MIME-type mismatch crashes & white pages!
     app.get(['/assets/*', '/*.*'], (req, res) => {
       res.status(404).type('text/plain').send('Asset not found');
     });
 
-    // SPA fallback: return index.html for all page routes
-    app.get('*', (req, res) => {
+    // Explicit Doctor Profile route for immediate OpenGraph metadata injection in production
+    app.get(['/doctor/:slugOrId', '/doctor-profile/:slugOrId'], async (req, res) => {
       const indexPath = path.join(distPath, 'index.html');
       if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
+        try {
+          const rawHtml = fs.readFileSync(indexPath, 'utf-8');
+          const finalHtml = await renderHtmlWithMetadata(req, rawHtml, req.params.slugOrId);
+          res.status(200).type('text/html; charset=utf-8').send(finalHtml);
+        } catch (err) {
+          res.sendFile(indexPath);
+        }
+      } else {
+        res.status(500).type('text/plain').send('Build artifact index.html not found');
+      }
+    });
+
+    // SPA fallback: return index.html for all page routes with doctor Open Graph metadata
+    app.get('*', async (req, res) => {
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        try {
+          const rawHtml = fs.readFileSync(indexPath, 'utf-8');
+          const finalHtml = await renderHtmlWithMetadata(req, rawHtml);
+          res.status(200).type('text/html; charset=utf-8').send(finalHtml);
+        } catch (err) {
+          res.sendFile(indexPath);
+        }
       } else {
         res.status(500).type('text/plain').send('Build artifact index.html not found');
       }
@@ -107,17 +136,64 @@ async function startServer() {
     });
     app.use(vite.middlewares);
 
+    // Explicit Doctor Profile route for immediate OpenGraph metadata injection in dev
+    app.get(['/doctor/:slugOrId', '/doctor-profile/:slugOrId'], async (req, res, next) => {
+      const url = req.originalUrl;
+      try {
+        let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        const finalHtml = await renderHtmlWithMetadata(req, template, req.params.slugOrId);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(finalHtml);
+      } catch (e) {
+        next(e);
+      }
+    });
+
     // Fallback for HTML entry point in dev
     app.use('*', async (req, res, next) => {
       const url = req.originalUrl;
       try {
         let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
         template = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+        const finalHtml = await renderHtmlWithMetadata(req, template);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(finalHtml);
       } catch (e) {
         next(e);
       }
     });
+  }
+
+  /**
+   * Detect doctor profile URLs and inject dynamic Open Graph / Twitter metadata into the HTML
+   */
+  async function renderHtmlWithMetadata(req: express.Request, htmlTemplate: string, explicitSlugOrId?: string): Promise<string> {
+    try {
+      let slugOrId = explicitSlugOrId;
+      if (!slugOrId) {
+        const match = req.originalUrl.split('?')[0].match(/^\/(?:doctor|doctor-profile)\/([^/?#]+)/i);
+        if (match && match[1]) {
+          slugOrId = match[1];
+        }
+      }
+
+      if (slugOrId) {
+        const decoded = decodeURIComponent(slugOrId);
+        const doctor = await getDoctorForMeta(decoded);
+        const baseUrl = getBaseUrl(req);
+
+        if (doctor) {
+          const metaData = buildDoctorMetaData(doctor, baseUrl, decoded);
+          return injectDoctorMetaIntoHtml(htmlTemplate, metaData);
+        } else {
+          // If doctor record is not found in database, generate doctor metadata from slug
+          const fallbackMeta = buildFallbackDoctorMetaData(decoded, baseUrl);
+          return injectDoctorMetaIntoHtml(htmlTemplate, fallbackMeta);
+        }
+      }
+    } catch (err) {
+      console.error('[SEO Meta] Error injecting doctor metadata:', err);
+    }
+    return htmlTemplate;
   }
 
   app.listen(PORT, '0.0.0.0', () => {
