@@ -91,7 +91,7 @@ const getSpecialtyConfig = (slug: string, name?: string) => {
 
 interface HomePageProps {
   onSearch: (filters: { search: string; specialty: string; location: string }) => void;
-  onSelectDoctor: (doctorId: number) => void;
+  onSelectDoctor: (doctorId: number | string) => void;
   onNavigate: (view: string) => void;
   onOpenTestModal: () => void;
 }
@@ -467,13 +467,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
 
                 <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
                   <button
-                    onClick={() => onSelectDoctor(doc.id)}
+                    onClick={() => onSelectDoctor(doc.slug || doc.id)}
                     className="w-full py-2 rounded-lg text-xs font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                   >
                     {t('Profile', 'প্রোফাইল')}
                   </button>
                   <button
-                    onClick={() => onSelectDoctor(doc.id)}
+                    onClick={() => onSelectDoctor(doc.slug || doc.id)}
                     className="w-full py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer"
                   >
                     {t('Get Serial', 'সিরিয়াল নিন')}

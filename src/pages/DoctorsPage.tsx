@@ -5,7 +5,7 @@ import { DoctorProfile, Specialty } from '../types.js';
 
 interface DoctorsPageProps {
   initialFilters?: { search: string; specialty: string; location: string };
-  onSelectDoctor: (doctorId: number) => void;
+  onSelectDoctor: (doctorId: number | string) => void;
 }
 
 export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSelectDoctor }) => {
@@ -276,13 +276,13 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
               {/* Action Buttons: View Profile & Get Serial */}
               <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-100">
                 <button
-                  onClick={() => onSelectDoctor(doctor.id)}
+                  onClick={() => onSelectDoctor(doctor.slug || doctor.id)}
                   className="py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs transition cursor-pointer"
                 >
                   {t('View Profile', 'প্রোফাইল দেখুন')}
                 </button>
                 <button
-                  onClick={() => onSelectDoctor(doctor.id)}
+                  onClick={() => onSelectDoctor(doctor.slug || doctor.id)}
                   className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition shadow-xs cursor-pointer"
                 >
                   {t('Get Serial', 'সিরিয়াল নিন')}

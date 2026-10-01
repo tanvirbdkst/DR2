@@ -51,7 +51,9 @@ function MainApp() {
   const { user } = useAuth();
   const initialRoute = parseRouteFromUrl();
   const [currentView, setCurrentView] = useState<string>(initialRoute.view);
-  const [selectedDoctorSlugOrId, setSelectedDoctorSlugOrId] = useState<string | number | null>(initialRoute.doctorSlugOrId);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | number | null>(initialRoute.doctorSlugOrId);
+  const selectedDoctorSlugOrId = selectedDoctorId;
+  const setSelectedDoctorSlugOrId = setSelectedDoctorId;
   const [searchFilters, setSearchFilters] = useState<{ search: string; specialty: string; location: string }>({
     search: '',
     specialty: '',
@@ -67,7 +69,7 @@ function MainApp() {
         setCurrentView(detected.view);
       }
       if (detected.doctorSlugOrId) {
-        setSelectedDoctorSlugOrId(detected.doctorSlugOrId);
+        setSelectedDoctorId(detected.doctorSlugOrId);
       }
     };
     window.addEventListener('popstate', handleLocationChange);
@@ -87,8 +89,8 @@ function MainApp() {
         window.history.pushState({}, '', '/admin');
       } else if (view === 'compounder-dashboard') {
         window.history.pushState({}, '', '/compounder');
-      } else if (view === 'doctor-profile' && (customParam || selectedDoctorSlugOrId)) {
-        const idOrSlug = customParam || selectedDoctorSlugOrId;
+      } else if (view === 'doctor-profile' && (customParam || selectedDoctorId)) {
+        const idOrSlug = customParam || selectedDoctorId;
         window.history.pushState({}, '', `/doctor/${idOrSlug}`);
       } else {
         window.history.pushState({}, '', `/${view}`);
@@ -117,7 +119,7 @@ function MainApp() {
   };
 
   const handleSelectDoctor = (doctorIdentifier: number | string) => {
-    setSelectedDoctorSlugOrId(doctorIdentifier);
+    setSelectedDoctorId(doctorIdentifier);
     handleNavigate('doctor-profile', String(doctorIdentifier));
   };
 
