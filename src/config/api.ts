@@ -135,7 +135,34 @@ export function setupApiInterceptor(): void {
       }
 
       modifiedInit.headers = headers;
-      return originalFetch(url, modifiedInit);
+
+      // Lightweight diagnostics: makes the Android auth/data-fetch flow
+      // observable via Chrome inspect / `adb logcat` (Capacitor/Console).
+      const method = String(
+        modifiedInit.method ||
+          (typeof input !== 'string' && !(input instanceof URL) ? (input as Request)?.method : '') ||
+          'GET',
+      ).toUpperCase();
+      const isApiCall = url.includes('/api/');
+      if (isApiCall) {
+        console.info(`[Daktar API] -> ${method} ${url}${token ? ' (auth)' : ' (no-token)'}`);
+      }
+
+      try {
+        const response = await originalFetch(url, modifiedInit);
+        if (isApiCall) {
+          console.info(`[Daktar API] <- ${method} ${url} ${response.status}`);
+        }
+        return response;
+      } catch (error) {
+        if (isApiCall) {
+          console.error(
+            `[Daktar API] !! ${method} ${url}`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        throw error;
+      }
     } catch {
       return originalFetch(input, init);
     }

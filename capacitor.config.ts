@@ -9,6 +9,13 @@ const config: CapacitorConfig = {
     cleartext: true,
   },
   plugins: {
+    // Route window.fetch / XMLHttpRequest through native Android/iOS networking.
+    // The production API does not return CORS headers for the WebView origin
+    // (https://localhost), which blocks cross-origin API calls in the WebView.
+    // Native HTTP bypasses browser CORS entirely.
+    CapacitorHttp: {
+      enabled: true,
+    },
     SplashScreen: {
       launchShowDuration: 2000,
       launchAutoHide: true,
