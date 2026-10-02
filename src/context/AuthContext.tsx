@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types.js';
+import { getAuthToken, setAuthToken, getStoredUser, setStoredUser } from '../config/api.js';
 
 interface AuthContextType {
   user: User | null;
@@ -15,7 +16,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // Pre-seed from stored user if available for instant offline / startup UI
+  const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState<'en' | 'bn'>('en');
 
@@ -25,12 +27,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.ok) {
         const data = await res.json();
         setUser(data.user || null);
+        setStoredUser(data.user || null);
       } else {
-        setUser(null);
+        // If server says unauthorized, clear stored session
+        if (res.status === 401 || res.status === 403) {
+          setUser(null);
+          setStoredUser(null);
+          setAuthToken(null);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch current user', err);
-      setUser(null);
+      console.warn('Network issue fetching current user:', err);
+      // Keep offline cached user if present
+      const cached = getStoredUser();
+      if (cached && !user) {
+        setUser(cached);
+      }
     } finally {
       setLoading(false);
     }
@@ -51,7 +63,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.ok) {
         return { success: false, error: data.error || 'Login failed' };
       }
-      setUser(data.user);
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      if (data.user) {
+        setUser(data.user);
+        setStoredUser(data.user);
+      }
       return { success: true, user: data.user };
     } catch (err: any) {
       return { success: false, error: err.message || 'Network error during login' };
@@ -65,6 +83,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error(err);
     } finally {
       setUser(null);
+      setStoredUser(null);
+      setAuthToken(null);
     }
   };
 

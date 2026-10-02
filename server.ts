@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import { initDatabase } from './server/db.js';
 import { authMiddleware } from './server/auth.js';
@@ -32,6 +33,34 @@ async function startServer() {
 
   // Trust proxy headers (LiteSpeed / Passenger / Cloudflare / Cloud Run reverse proxies)
   app.set('trust proxy', true);
+
+  // Enable CORS for Android Capacitor & Web
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin) return callback(null, true);
+      // Allow capacitor schemes, localhost, and production domains
+      const configuredHost = (process.env.APP_URL || process.env.VITE_APP_URL || '')
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0]
+        .split(':')[0];
+
+      if (
+        origin.startsWith('capacitor://') ||
+        origin.startsWith('http://localhost') ||
+        origin.startsWith('https://localhost') ||
+        (configuredHost && origin.includes(configuredHost)) ||
+        origin.includes('dakatarseial.bd') ||
+        origin.includes('run.app')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Permissive for API consumers
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  }));
 
   // Global Middlewares with increased size limit for photo uploads
   app.use(express.json({ limit: '15mb' }));

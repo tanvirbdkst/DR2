@@ -14,6 +14,8 @@ import { PatientDashboardPage } from './pages/PatientDashboardPage.js';
 import { DoctorDashboardPage } from './pages/DoctorDashboardPage.js';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.js';
 import { CompounderDashboardPage } from './pages/CompounderDashboardPage.js';
+import { setupBackButtonHandler } from './services/capacitorService.js';
+import { initializePushNotifications } from './services/notificationService.js';
 
 function parseRouteFromUrl(): { view: string; doctorSlugOrId: string | null } {
   if (typeof window === 'undefined') return { view: 'home', doctorSlugOrId: null };
@@ -101,6 +103,32 @@ function MainApp() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  useEffect(() => {
+    // 1. Initialize FCM Push Notifications (if on native device)
+    initializePushNotifications();
+  }, []);
+
+  useEffect(() => {
+    // 2. Hardware Android Back Button Navigation
+    const cleanup = setupBackButtonHandler(() => {
+      if (isTestModalOpen) {
+        setIsTestModalOpen(false);
+        return true;
+      }
+      if (currentView !== 'home') {
+        if (currentView === 'doctor-profile') {
+          handleNavigate('doctors');
+        } else {
+          handleNavigate('home');
+        }
+        return true;
+      }
+      return false; // Exit app if already at home
+    });
+
+    return cleanup;
+  }, [currentView, isTestModalOpen]);
+
   // A compounder is confined to their own panel: they must never land on the
   // admin, doctor, or patient dashboards (server-side guards back this up too).
   useEffect(() => {
@@ -165,20 +193,32 @@ function MainApp() {
           />
         )}
 
-        {currentView === 'doctor-profile' && selectedDoctorId && (
+        {currentView === 'doctor-profile' && selectedDoctorId ? (
           <DoctorProfilePage
             doctorId={selectedDoctorId}
             onBack={() => handleNavigate('doctors')}
             onBookingSuccess={handleBookingSuccess}
           />
-        )}
-
-        {currentView === 'booking-confirmed' && lastBookingData && (
-          <BookingConfirmationPage
-            bookingData={lastBookingData}
-            onGoToDashboard={() => handleNavigate('patient-dashboard')}
-            onBookAnother={() => handleNavigate('doctors')}
+        ) : currentView === 'doctor-profile' ? (
+          <DoctorsPage
+            initialFilters={searchFilters}
+            onSelectDoctor={handleSelectDoctor}
           />
+        ) : null}
+
+        {currentView === 'booking-confirmed' && (
+          lastBookingData ? (
+            <BookingConfirmationPage
+              bookingData={lastBookingData}
+              onGoToDashboard={() => handleNavigate('patient-dashboard')}
+              onBookAnother={() => handleNavigate('doctors')}
+            />
+          ) : (
+            <DoctorsPage
+              initialFilters={searchFilters}
+              onSelectDoctor={handleSelectDoctor}
+            />
+          )
         )}
 
         {currentView === 'login' && (
@@ -218,6 +258,16 @@ function MainApp() {
 
         {currentView === 'admin-dashboard' && (
           <AdminDashboardPage onNavigate={handleNavigate} />
+        )}
+
+        {/* Fallback to HomePage if view is unmatched */}
+        {!['home', 'doctors', 'doctor-profile', 'booking-confirmed', 'login', 'register-patient', 'register-doctor', 'patient-dashboard', 'doctor-dashboard', 'admin-dashboard', 'compounder-dashboard'].includes(currentView) && (
+          <HomePage
+            onSearch={handleSearchFromHome}
+            onSelectDoctor={handleSelectDoctor}
+            onNavigate={handleNavigate}
+            onOpenTestModal={() => setIsTestModalOpen(true)}
+          />
         )}
       </main>
 

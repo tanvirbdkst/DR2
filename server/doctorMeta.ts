@@ -181,8 +181,9 @@ export function escapeUrl(url: string): string {
  * Resolve absolute base URL from Express request with reliable HTTPS detection
  */
 export function getBaseUrl(req: any): string {
-  if (process.env.APP_URL) {
-    let appUrl = process.env.APP_URL.trim().replace(/\/+$/, '');
+  const envUrl = process.env.APP_URL || process.env.VITE_APP_URL;
+  if (envUrl) {
+    let appUrl = envUrl.trim().replace(/\/+$/, '');
     if (!appUrl.includes('localhost') && !appUrl.includes('127.0.0.1') && appUrl.startsWith('http://')) {
       appUrl = appUrl.replace(/^http:\/\//i, 'https://');
     }

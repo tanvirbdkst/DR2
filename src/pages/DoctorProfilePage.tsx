@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Chamber, Schedule, SerialSlot } from '../types.js';
 import { DoctorShareModal } from '../components/DoctorShareModal.js';
+import { getDoctorProfileUrl } from '../config/api.js';
 
 interface DoctorProfilePageProps {
   doctorId: number | string;
@@ -184,9 +185,8 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
     }
   };
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const profileSlugOrId = doctor?.slug || doctor?.id || doctorId;
-  const shareUrl = `${origin}/doctor/${profileSlugOrId}`;
+  const shareUrl = getDoctorProfileUrl(profileSlugOrId);
 
   const handleQuickCopy = async () => {
     try {

@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    <!-- Rounded Background Badge -->
+    <path
+        android:fillColor="#059669"
+        android:pathData="M24,8 h80 a16,16 0 0 1 16,16 v80 a16,16 0 0 1 -16,16 h-80 a16,16 0 0 1 -16,-16 v-80 a16,16 0 0 1 16,-16 z" />
+    <!-- White Medical Cross -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28 h20 v26 h26 v20 h-26 v26 h-20 v-26 h-26 v-20 h26 z" />
+    <!-- Pulse Line Accent -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M38,64 h16 l6,-14 l8,28 l6,-14 h16"
+        android:strokeWidth="3"
+        android:strokeColor="#047857"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
