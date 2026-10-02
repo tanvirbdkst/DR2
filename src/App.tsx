@@ -173,7 +173,6 @@ function MainApp() {
       <Navbar
         currentView={currentView}
         setCurrentView={handleNavigate}
-        onOpenTestModal={() => setIsTestModalOpen(true)}
       />
 
       <main className="flex-1">
@@ -182,7 +181,6 @@ function MainApp() {
             onSearch={handleSearchFromHome}
             onSelectDoctor={handleSelectDoctor}
             onNavigate={handleNavigate}
-            onOpenTestModal={() => setIsTestModalOpen(true)}
           />
         )}
 
@@ -266,7 +264,6 @@ function MainApp() {
             onSearch={handleSearchFromHome}
             onSelectDoctor={handleSelectDoctor}
             onNavigate={handleNavigate}
-            onOpenTestModal={() => setIsTestModalOpen(true)}
           />
         )}
       </main>

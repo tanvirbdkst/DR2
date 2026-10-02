@@ -1,65 +1,28 @@
 import React, { useState } from 'react';
-import { Stethoscope, CalendarCheck, ShieldCheck, User, LogOut, ChevronDown, CheckCircle2, ClipboardList } from 'lucide-react';
+import { Stethoscope, CalendarCheck, ShieldCheck, User, LogOut, ChevronDown, ClipboardList } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
 interface NavbarProps {
   currentView: string;
   setCurrentView: (view: string) => void;
-  onOpenTestModal: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView, onOpenTestModal }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) => {
   const { user, logout, lang, setLang, t } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const isCompounder = user?.role === 'compounder';
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      {/* Top micro bar for Phase 1 verification badge & quick switcher */}
+      {/* Top micro bar: language switcher */}
       <div className="bg-slate-900 text-slate-200 text-xs py-1.5 px-4">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-              <CheckCircle2 className="w-3 h-3 mr-1" />
-              Phase 1 MVP Active
-            </span>
-            <span className="hidden sm:inline text-slate-400">
-              Complete Flow: Admin Approval → Doctor Chamber/Schedule → Patient Serial Booking → Double Booking Protected
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            {!isCompounder && (
-              <>
-                <button
-                  onClick={() => setCurrentView('admin-dashboard')}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-medium transition cursor-pointer ${
-                    currentView === 'admin-dashboard'
-                      ? 'bg-amber-400 text-slate-950 font-bold'
-                      : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/30'
-                  }`}
-                  title="Open Admin Control Panel"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Admin Panel</span>
-                </button>
-                <button
-                  onClick={onOpenTestModal}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition cursor-pointer text-[11px]"
-                >
-                  <span>Run 18-Step Test Suite</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                </button>
-              </>
-            )}
-            <div className="flex items-center border-l border-slate-700 pl-3">
-              <button
-                onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}
-                className="hover:text-emerald-400 transition font-medium cursor-pointer"
-              >
-                {lang === 'en' ? 'বাংলা' : 'English'}
-              </button>
-            </div>
-          </div>
+        <div className="max-w-7xl mx-auto flex items-center justify-end gap-2">
+          <button
+            onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}
+            className="hover:text-emerald-400 transition font-medium cursor-pointer"
+          >
+            {lang === 'en' ? 'বাংলা' : 'English'}
+          </button>
         </div>
       </div>
 

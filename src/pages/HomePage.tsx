@@ -93,10 +93,9 @@ interface HomePageProps {
   onSearch: (filters: { search: string; specialty: string; location: string }) => void;
   onSelectDoctor: (doctorId: number | string) => void;
   onNavigate: (view: string) => void;
-  onOpenTestModal: () => void;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, onNavigate, onOpenTestModal }) => {
+export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, onNavigate }) => {
   const { t } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
@@ -485,28 +484,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         </section>
       )}
 
-      {/* Verification Suite Quick Banner */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 border border-slate-700 shadow-xl">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-slate-950">
-                PHASE 1 ACCEPTANCE CRITERIA
-              </span>
-            </div>
-            <h3 className="text-xl font-bold">18-Step Live Database Verification Suite</h3>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-              Test doctor registration, admin approval, chamber creation, automated serial generation, patient booking, and strict database double-booking rejection with one click.
-            </p>
-          </div>
-          <button
-            onClick={onOpenTestModal}
-            className="shrink-0 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition shadow-lg shadow-emerald-500/20 cursor-pointer"
-          >
-            Launch Test Suite
-          </button>
-        </div>
-      </section>
     </div>
   );
 };
