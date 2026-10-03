@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Chamber, Schedule, Appointment, Specialty } from '../types.js';
 import { ImageUpload } from '../components/ImageUpload.js';
+import { BANGLADESH_DISTRICTS } from '../data/districts.js';
 
 export const DoctorDashboardPage: React.FC = () => {
   const { user, refreshUser, t } = useAuth();
@@ -994,13 +995,22 @@ export const DoctorDashboardPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">City</label>
+                  <label className="block font-semibold text-slate-700 mb-1">{t('City / District', 'শহর / জেলা')}</label>
                   <input
                     type="text"
+                    list="chamber-districts-list"
                     value={newChamberCity}
                     onChange={(e) => setNewChamberCity(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden"
+                    placeholder={t('e.g. Dhaka', 'যেমন: ঢাকা')}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
                   />
+                  <datalist id="chamber-districts-list">
+                    {BANGLADESH_DISTRICTS.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name_bn}
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Area</label>

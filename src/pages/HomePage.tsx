@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { Specialty, DoctorProfile } from '../types.js';
+import { BANGLADESH_DIVISIONS } from '../data/districts.js';
 
 const getSpecialtyConfig = (slug: string, name?: string) => {
   const s = `${slug || ''} ${name || ''}`.toLowerCase();
@@ -199,18 +200,30 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                 </select>
               </div>
 
-              {/* Location dropdown/input */}
+              {/* Location / District dropdown */}
               <div className="sm:col-span-3 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <MapPin className="w-4 h-4" />
                 </div>
-                <input
-                  type="text"
+                <select
                   value={selectedLocation}
                   onChange={(e) => setSelectedLocation(e.target.value)}
-                  placeholder={t('Location (e.g. Dhanmondi, Dhaka)', 'এলাকা (যেমন: ধানমন্ডি)')}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition"
-                />
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white"
+                >
+                  <option value="">{t('All Districts (Location)', 'সকল জেলা (লোকেশন)')}</option>
+                  {BANGLADESH_DIVISIONS.map((division) => (
+                    <optgroup
+                      key={division.id}
+                      label={lang === 'bn' ? `${division.name_bn} বিভাগ` : `${division.name} Division`}
+                    >
+                      {division.districts.map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {lang === 'bn' ? d.name_bn : d.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
 
               {/* Submit Button */}

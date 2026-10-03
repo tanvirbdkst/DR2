@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { RowDataPacket } from 'mysql2/promise';
+import { BANGLADESH_DISTRICTS, getDistrictSearchTerms } from '../districts.js';
 
 const router = Router();
 
@@ -34,6 +35,11 @@ router.get('/specialties', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// 1.1 Get Bangladesh Districts
+router.get('/districts', (req, res) => {
+  res.json({ districts: BANGLADESH_DISTRICTS });
 });
 
 // 2. Search Public Doctors (ONLY APPROVED DOCTORS WITH ACTIVE USER ACCOUNTS ARE RETURNED)
@@ -85,9 +91,13 @@ router.get('/doctors', async (req, res) => {
     }
 
     if (location && location.trim() !== '') {
-      query += ` AND (c.city LIKE ? OR c.area LIKE ? OR c.address LIKE ?)`;
-      const locTerm = `%${location.trim()}%`;
-      params.push(locTerm, locTerm, locTerm);
+      const terms = getDistrictSearchTerms(location.trim());
+      const conditions = terms.map(() => `(c.city LIKE ? OR c.area LIKE ? OR c.address LIKE ?)`).join(' OR ');
+      query += ` AND (${conditions})`;
+      for (const term of terms) {
+        const locTerm = `%${term}%`;
+        params.push(locTerm, locTerm, locTerm);
+      }
     }
 
     query += `
