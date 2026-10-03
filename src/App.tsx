@@ -104,8 +104,11 @@ function MainApp() {
   };
 
   useEffect(() => {
-    // 1. Initialize FCM Push Notifications (if on native device)
-    initializePushNotifications();
+    // 1. Initialize FCM Push Notifications safely after UI loads (if on native device and already granted)
+    const timer = setTimeout(() => {
+      initializePushNotifications();
+    }, 1500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

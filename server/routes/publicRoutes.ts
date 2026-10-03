@@ -58,22 +58,30 @@ router.get('/doctors', async (req, res) => {
     const params: any[] = [];
 
     if (search && search.trim() !== '') {
-      query += ` AND (u.name LIKE ? OR d.qualification LIKE ? OR d.bio LIKE ?)`;
+      query += ` AND (
+        u.name LIKE ? OR d.qualification LIKE ? OR d.bio LIKE ?
+        OR s.name LIKE ? OR s.name_bn LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM doctor_specialties ds_s
+          JOIN specialties s_sub ON ds_s.specialty_id = s_sub.id
+          WHERE ds_s.doctor_id = d.id AND (s_sub.name LIKE ? OR s_sub.name_bn LIKE ?)
+        )
+      )`;
       const term = `%${search.trim()}%`;
-      params.push(term, term, term);
+      params.push(term, term, term, term, term, term, term);
     }
 
     if (specialty && specialty !== 'all') {
       query += ` AND (
-        s.slug = ? OR s.id = ?
+        s.slug = ? OR s.id = ? OR s.name = ? OR s.name_bn = ?
         OR EXISTS (
           SELECT 1 FROM doctor_specialties ds_filter
           JOIN specialties s_filter ON ds_filter.specialty_id = s_filter.id
-          WHERE ds_filter.doctor_id = d.id AND (s_filter.slug = ? OR s_filter.id = ?)
+          WHERE ds_filter.doctor_id = d.id AND (s_filter.slug = ? OR s_filter.id = ? OR s_filter.name = ? OR s_filter.name_bn = ?)
         )
       )`;
       const sId = Number(specialty) || 0;
-      params.push(specialty, sId, specialty, sId);
+      params.push(specialty, sId, specialty, specialty, specialty, sId, specialty, specialty);
     }
 
     if (location && location.trim() !== '') {

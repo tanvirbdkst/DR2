@@ -15,7 +15,7 @@ interface DoctorShareModalProps {
 }
 
 export const DoctorShareModal: React.FC<DoctorShareModalProps> = ({ isOpen, onClose, doctor }) => {
-  const { t } = useAuth();
+  const { t, lang } = useAuth();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen || !doctor) return null;
@@ -25,8 +25,8 @@ export const DoctorShareModal: React.FC<DoctorShareModalProps> = ({ isOpen, onCl
 
   const doctorSpecialtiesText =
     doctor.specialties && doctor.specialties.length > 0
-      ? doctor.specialties.map((s) => s.name).join(' + ')
-      : doctor.specialty_name || 'Medical Specialist';
+      ? doctor.specialties.map((s) => (lang === 'bn' && s.name_bn ? s.name_bn : s.name)).join(' + ')
+      : (lang === 'bn' && doctor.specialty_name_bn ? doctor.specialty_name_bn : doctor.specialty_name) || (lang === 'bn' ? 'বিশেষজ্ঞ' : 'Medical Specialist');
 
   const shareTitle = `${doctor.title} ${doctor.name} - ${doctorSpecialtiesText}`;
   const shareText = `${doctor.title} ${doctor.name} (${doctor.qualification || doctorSpecialtiesText})\nBMDC: ${doctor.bmdc_number || 'Verified'}\nঅ্যাপয়েন্টমেন্ট বা চেম্বার সিরিয়াল বুকিং করতে নিচের লিংকে ক্লিক করুন:\n${profileUrl}`;

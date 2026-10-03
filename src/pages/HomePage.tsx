@@ -96,7 +96,7 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, onNavigate }) => {
-  const { t } = useAuth();
+  const { t, lang } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -193,7 +193,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   <option value="">{t('All Specialties', 'সকল বিভাগ')}</option>
                   {specialties.map((spec) => (
                     <option key={spec.id} value={spec.slug}>
-                      {spec.name}
+                      {lang === 'bn' ? (spec.name_bn || spec.name) : spec.name}
                     </option>
                   ))}
                 </select>
@@ -228,17 +228,22 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
             <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between text-[11px] text-slate-500 gap-2">
               <span className="flex items-center gap-1">
                 <span className="font-semibold text-slate-700">{t('Popular:', 'জনপ্রিয়:')}</span>
-                {['Cardiology', 'General Medicine', 'Pediatrics', 'Gynecology'].map((item) => (
+                {[
+                  { name: 'Cardiology', name_bn: 'হৃদরোগ', slug: 'cardiology' },
+                  { name: 'General Medicine', name_bn: 'সাধারণ চিকিৎসা', slug: 'general-medicine' },
+                  { name: 'Pediatrics', name_bn: 'শিশু বিশেষজ্ঞ', slug: 'pediatrics' },
+                  { name: 'Gynecology', name_bn: 'স্ত্রী ও প্রসূতি রোগ', slug: 'gynecology' },
+                ].map((item) => (
                   <button
-                    key={item}
+                    key={item.slug}
                     type="button"
                     onClick={() => {
-                      setSelectedSpecialty(item.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-                      onSearch({ search: '', specialty: item.toLowerCase().replace(/[^a-z0-9]+/g, '-'), location: '' });
+                      setSelectedSpecialty(item.slug);
+                      onSearch({ search: '', specialty: item.slug, location: '' });
                     }}
                     className="hover:text-emerald-600 underline decoration-slate-300 underline-offset-2 ml-1 cursor-pointer"
                   >
-                    {item}
+                    {lang === 'bn' ? item.name_bn : item.name}
                   </button>
                 ))}
               </span>
@@ -289,12 +294,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   <IconComp className="w-6 h-6" />
                 </div>
                 <h3 className="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-emerald-600 transition leading-snug line-clamp-1">
-                  {spec.name}
+                  {lang === 'bn' ? (spec.name_bn || spec.name) : spec.name}
                 </h3>
-                {spec.name_bn && (
+                {lang === 'bn' ? (
                   <p className="text-[11px] sm:text-xs text-slate-500 mt-1 line-clamp-1 font-normal">
-                    {spec.name_bn}
+                    {spec.name}
                   </p>
+                ) : (
+                  spec.name_bn && (
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-1 line-clamp-1 font-normal">
+                      {spec.name_bn}
+                    </p>
+                  )
                 )}
               </div>
             );
@@ -427,12 +438,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                               key={s.id}
                               className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded"
                             >
-                              {s.name}
+                              {lang === 'bn' ? (s.name_bn || s.name) : s.name}
                             </span>
                           ))
                         ) : (
                           <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                            {doc.specialty_name || 'Specialist'}
+                            {lang === 'bn' ? (doc.specialty_name_bn || doc.specialty_name || 'বিশেষজ্ঞ') : (doc.specialty_name || 'Specialist')}
                           </span>
                         )}
                       </div>

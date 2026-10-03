@@ -5,44 +5,75 @@ export interface PushNotificationCallback {
   onTokenReceived?: (token: string) => void;
   onNotificationReceived?: (notification: PushNotificationSchema) => void;
   onNotificationAction?: (notification: ActionPerformed) => void;
+  onError?: (error: any) => void;
 }
 
 /**
- * Initializes Push Notifications for Android / iOS using FCM.
- * Safe to call on web (gracefully skips).
+ * Checks current push notification permission status without prompting the user.
  */
-export async function initializePushNotifications(callbacks?: PushNotificationCallback): Promise<boolean> {
+export async function getNotificationPermissionStatus(): Promise<string> {
+  if (!Capacitor.isNativePlatform()) {
+    return 'unsupported';
+  }
+  try {
+    const status = await PushNotifications.checkPermissions();
+    return status.receive;
+  } catch (err) {
+    console.warn('[Push] Error checking permissions:', err);
+    return 'denied';
+  }
+}
+
+/**
+ * Requests push notification permission interactively (when user opts in).
+ */
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) {
+    return false;
+  }
+  try {
+    let permStatus = await PushNotifications.checkPermissions();
+    if (permStatus.receive === 'prompt' || permStatus.receive === 'prompt-with-rationale') {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+    return permStatus.receive === 'granted';
+  } catch (err) {
+    console.warn('[Push] Error requesting notification permissions:', err);
+    return false;
+  }
+}
+
+/**
+ * Safely registers push notifications with FCM.
+ * Only attempts registration if permission is already granted.
+ * Catches any native/Firebase exceptions gracefully without crashing the app.
+ */
+export async function registerPushNotificationsSafely(callbacks?: PushNotificationCallback): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) {
     return false;
   }
 
   try {
-    let permStatus = await PushNotifications.checkPermissions();
-
-    if (permStatus.receive === 'prompt') {
-      permStatus = await PushNotifications.requestPermissions();
-    }
-
-    if (permStatus.receive !== 'granted') {
-      console.warn('[Push] Permission not granted for push notifications.');
+    const status = await PushNotifications.checkPermissions();
+    if (status.receive !== 'granted') {
+      console.log('[Push] Notification permission not granted. Skipping registration.');
       return false;
     }
 
-    // Register with Apple / Google for tokens
-    await PushNotifications.register();
-
-    // Listeners
+    // Set up listeners first before registering
     await PushNotifications.addListener('registration', (token: Token) => {
-      console.log('[Push] Device registration token:', token.value);
-      callbacks?.onTokenReceived?.(token.value);
-      // Optional: Save to backend / local storage for doctor / patient alerts
-      try {
-        localStorage.setItem('daktar_fcm_token', token.value);
-      } catch {}
+      console.log('[Push] FCM Device registration token received:', token?.value ? 'Token present' : 'Empty');
+      if (token?.value) {
+        callbacks?.onTokenReceived?.(token.value);
+        try {
+          localStorage.setItem('daktar_fcm_token', token.value);
+        } catch {}
+      }
     });
 
     await PushNotifications.addListener('registrationError', (err: any) => {
-      console.error('[Push] Registration error:', err);
+      console.warn('[Push] FCM Registration note (Firebase configuration check):', err);
+      callbacks?.onError?.(err);
     });
 
     await PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
@@ -51,13 +82,38 @@ export async function initializePushNotifications(callbacks?: PushNotificationCa
     });
 
     await PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
-      console.log('[Push] Notification tapped/opened by user:', notification);
+      console.log('[Push] Notification opened by user:', notification);
       callbacks?.onNotificationAction?.(notification);
     });
 
+    // Register with FCM/APNS safely
+    await PushNotifications.register();
     return true;
   } catch (err) {
-    console.error('[Push] Failed to initialize push notifications:', err);
+    console.warn('[Push] Safe push registration skipped (Firebase may not be configured):', err);
+    callbacks?.onError?.(err);
+    return false;
+  }
+}
+
+/**
+ * Initializes push notifications safely.
+ * - Does NOT force popup permissions on first frame of startup.
+ * - If user already granted permission, registers in the background safely.
+ */
+export async function initializePushNotifications(callbacks?: PushNotificationCallback): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  try {
+    const status = await PushNotifications.checkPermissions();
+    if (status.receive === 'granted') {
+      return await registerPushNotificationsSafely(callbacks);
+    }
+    return false;
+  } catch (err) {
+    console.warn('[Push] Notification initialization check skipped:', err);
     return false;
   }
 }

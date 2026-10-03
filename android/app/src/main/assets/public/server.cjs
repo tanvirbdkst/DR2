@@ -324,7 +324,7 @@ function ensureSqliteColumns(db) {
       ('Allergy & Immunology', '\u0985\u09CD\u09AF\u09BE\u09B2\u09BE\u09B0\u09CD\u099C\u09BF \u0993 \u0987\u09AE\u09BF\u0989\u09A8\u09CB\u09B2\u099C\u09BF', 'allergy-immunology', 'Stethoscope', 'Allergic conditions and immune disorders', 'active'),
       ('Cardiology', '\u09B9\u09C3\u09A6\u09B0\u09CB\u0997', 'cardiology', 'Heart', 'Heart and cardiovascular diseases', 'active'),
       ('Clinical Nutrition', '\u0995\u09CD\u09B2\u09BF\u09A8\u09BF\u0995\u09CD\u09AF\u09BE\u09B2 \u09AA\u09C1\u09B7\u09CD\u099F\u09BF', 'clinical-nutrition', 'Apple', 'Dietetics and clinical nutrition', 'active'),
-      ('Dental Surgery', '\u09A6\u09B8\u09CD\u09A4 \u09B8\u09BE\u09B0\u09CD\u099C\u09BE\u09B0\u09BF', 'dental-surgery', 'Smile', 'Teeth and oral surgery', 'active'),
+      ('Dental Surgery', '\u09A6\u09A8\u09CD\u09A4 \u09B8\u09BE\u09B0\u09CD\u099C\u09BE\u09B0\u09BF', 'dental-surgery', 'Smile', 'Teeth and oral surgery', 'active'),
       ('Dermatology', '\u099A\u09B0\u09CD\u09AE\u09B0\u09CB\u0997', 'dermatology', 'Sparkles', 'Skin, hair, and nail treatments', 'active'),
       ('Diabetology', '\u09A1\u09BE\u09AF\u09BC\u09BE\u09AC\u09C7\u099F\u09BF\u09B8', 'diabetology', 'Activity', 'Diabetes care and hormone control', 'active'),
       ('Endocrinology', '\u09B9\u09B0\u09AE\u09CB\u09A8 \u09B0\u09CB\u0997', 'endocrinology', 'Stethoscope', 'Hormonal and thyroid diseases', 'active'),
@@ -2049,21 +2049,29 @@ router3.get("/doctors", async (req, res) => {
     `;
     const params = [];
     if (search && search.trim() !== "") {
-      query += ` AND (u.name LIKE ? OR d.qualification LIKE ? OR d.bio LIKE ?)`;
+      query += ` AND (
+        u.name LIKE ? OR d.qualification LIKE ? OR d.bio LIKE ?
+        OR s.name LIKE ? OR s.name_bn LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM doctor_specialties ds_s
+          JOIN specialties s_sub ON ds_s.specialty_id = s_sub.id
+          WHERE ds_s.doctor_id = d.id AND (s_sub.name LIKE ? OR s_sub.name_bn LIKE ?)
+        )
+      )`;
       const term = `%${search.trim()}%`;
-      params.push(term, term, term);
+      params.push(term, term, term, term, term, term, term);
     }
     if (specialty && specialty !== "all") {
       query += ` AND (
-        s.slug = ? OR s.id = ?
+        s.slug = ? OR s.id = ? OR s.name = ? OR s.name_bn = ?
         OR EXISTS (
           SELECT 1 FROM doctor_specialties ds_filter
           JOIN specialties s_filter ON ds_filter.specialty_id = s_filter.id
-          WHERE ds_filter.doctor_id = d.id AND (s_filter.slug = ? OR s_filter.id = ?)
+          WHERE ds_filter.doctor_id = d.id AND (s_filter.slug = ? OR s_filter.id = ? OR s_filter.name = ? OR s_filter.name_bn = ?)
         )
       )`;
       const sId = Number(specialty) || 0;
-      params.push(specialty, sId, specialty, sId);
+      params.push(specialty, sId, specialty, specialty, specialty, sId, specialty, specialty);
     }
     if (location && location.trim() !== "") {
       query += ` AND (c.city LIKE ? OR c.area LIKE ? OR c.address LIKE ?)`;

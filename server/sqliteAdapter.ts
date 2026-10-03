@@ -310,7 +310,7 @@ function ensureSqliteColumns(db: DatabaseSync) {
       ('Allergy & Immunology', 'অ্যালার্জি ও ইমিউনোলজি', 'allergy-immunology', 'Stethoscope', 'Allergic conditions and immune disorders', 'active'),
       ('Cardiology', 'হৃদরোগ', 'cardiology', 'Heart', 'Heart and cardiovascular diseases', 'active'),
       ('Clinical Nutrition', 'ক্লিনিক্যাল পুষ্টি', 'clinical-nutrition', 'Apple', 'Dietetics and clinical nutrition', 'active'),
-      ('Dental Surgery', 'দস্ত সার্জারি', 'dental-surgery', 'Smile', 'Teeth and oral surgery', 'active'),
+      ('Dental Surgery', 'দন্ত সার্জারি', 'dental-surgery', 'Smile', 'Teeth and oral surgery', 'active'),
       ('Dermatology', 'চর্মরোগ', 'dermatology', 'Sparkles', 'Skin, hair, and nail treatments', 'active'),
       ('Diabetology', 'ডায়াবেটিস', 'diabetology', 'Activity', 'Diabetes care and hormone control', 'active'),
       ('Endocrinology', 'হরমোন রোগ', 'endocrinology', 'Stethoscope', 'Hormonal and thyroid diseases', 'active'),

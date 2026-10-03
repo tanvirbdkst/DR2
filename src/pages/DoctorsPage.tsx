@@ -9,7 +9,7 @@ interface DoctorsPageProps {
 }
 
 export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSelectDoctor }) => {
-  const { t } = useAuth();
+  const { t, lang } = useAuth();
   const [searchTerm, setSearchTerm] = useState(initialFilters?.search || '');
   const [specialtyFilter, setSpecialtyFilter] = useState(initialFilters?.specialty || '');
   const [locationFilter, setLocationFilter] = useState(initialFilters?.location || '');
@@ -115,7 +115,7 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
               <option value="">{t('All Specialties', 'সকল বিভাগ')}</option>
               {specialties.map((s) => (
                 <option key={s.id} value={s.slug}>
-                  {s.name}
+                  {lang === 'bn' ? (s.name_bn || s.name) : s.name}
                 </option>
               ))}
             </select>
@@ -210,12 +210,12 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
                             key={s.id}
                             className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100"
                           >
-                            {s.name}
+                            {lang === 'bn' ? (s.name_bn || s.name) : s.name}
                           </span>
                         ))
                       ) : (
                         <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700">
-                          {doctor.specialty_name || 'Specialist'}
+                          {lang === 'bn' ? (doctor.specialty_name_bn || doctor.specialty_name || 'বিশেষজ্ঞ') : (doctor.specialty_name || 'Specialist')}
                         </span>
                       )}
                     </div>

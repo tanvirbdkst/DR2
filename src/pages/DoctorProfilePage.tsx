@@ -16,7 +16,7 @@ interface DoctorProfilePageProps {
 }
 
 export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, onBack, onBookingSuccess }) => {
-  const { user, t } = useAuth();
+  const { user, t, lang } = useAuth();
 
   const [doctor, setDoctor] = useState<DoctorProfile | null>(null);
   const [chambers, setChambers] = useState<Chamber[]>([]);
@@ -326,12 +326,17 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
                     key={s.id}
                     className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs"
                   >
-                    {s.name} {s.name_bn && <span className="opacity-75 text-[11px] font-normal">({s.name_bn})</span>}
+                    {lang === 'bn' ? (s.name_bn || s.name) : s.name}{' '}
+                    {lang === 'bn' ? (
+                      s.name_bn ? <span className="opacity-75 text-[11px] font-normal">({s.name})</span> : null
+                    ) : (
+                      s.name_bn ? <span className="opacity-75 text-[11px] font-normal">({s.name_bn})</span> : null
+                    )}
                   </span>
                 ))
               ) : (
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {doctor.specialty_name || 'Medical Specialist'}
+                  {lang === 'bn' ? (doctor.specialty_name_bn || doctor.specialty_name || 'মেডিকেল বিশেষজ্ঞ') : (doctor.specialty_name || 'Medical Specialist')}
                 </span>
               )}
               <span className="inline-flex items-center gap-1 text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-0.5 rounded-md">
