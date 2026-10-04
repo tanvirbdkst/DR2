@@ -1,6 +1,7 @@
 import mysql, { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { SqlitePoolWrapper } from './sqliteAdapter.js';
+import { ensureDistrictsTableInDb } from './districts.js';
 
 dotenv.config();
 
@@ -102,6 +103,8 @@ export async function initDatabase(): Promise<void> {
     isMysqlActive = true;
     console.log(`[MySQL] Successfully connected to database: ${dbName} on ${dbHost}:${dbPort}`);
     connection.release();
+    // Ensure districts table exists and has 64 districts in MySQL
+    await ensureDistrictsTableInDb(mysqlPool);
   } catch (err: any) {
     isMysqlActive = false;
     console.log(`[Database] MySQL not reachable at ${dbHost}:${dbPort} (${err.code || err.message}).`);

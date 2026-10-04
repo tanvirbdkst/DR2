@@ -95,6 +95,8 @@ async function runMigrations() {
       'migrations_002_extensions.sql',
       'migrations_003_comprehensive.sql',
       'migrations_004_compounder.sql',
+      'migrations_005_doctor_specialties.sql',
+      'migrations_006_districts.sql',
     ];
 
     for (const migFile of migrations) {

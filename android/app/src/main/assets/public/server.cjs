@@ -126,6 +126,90 @@ function getDistrictSearchTerms(term) {
   const terms = [district.name, district.name_bn, ...district.aliases || []];
   return Array.from(new Set(terms));
 }
+async function ensureDistrictsTableInDb(dbPool) {
+  try {
+    try {
+      const [testRows] = await dbPool.query("SELECT COUNT(*) as c FROM districts");
+      const currentCount = Number(testRows?.[0]?.c ?? testRows?.[0]?.count ?? 0);
+      if (currentCount >= 64) {
+        return;
+      }
+    } catch {
+    }
+    let tableCreated = false;
+    try {
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS districts (
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          name_bn VARCHAR(100) NOT NULL,
+          division VARCHAR(50) NOT NULL,
+          division_bn VARCHAR(50) NOT NULL,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      tableCreated = true;
+    } catch (mysqlErr) {
+      console.warn("[Districts] MySQL create table notice (trying portable syntax):", mysqlErr.message);
+    }
+    if (!tableCreated) {
+      try {
+        await dbPool.query(`
+          CREATE TABLE IF NOT EXISTS districts (
+            id VARCHAR(64) NOT NULL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            name_bn VARCHAR(100) NOT NULL,
+            division VARCHAR(50) NOT NULL,
+            division_bn VARCHAR(50) NOT NULL,
+            is_active INT NOT NULL DEFAULT 1,
+            sort_order INT NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+      } catch (portErr) {
+        console.error("[Districts] Fatal: Could not create districts table:", portErr.message);
+        throw portErr;
+      }
+    }
+    const [countRows] = await dbPool.query("SELECT COUNT(*) as c FROM districts");
+    const count = Number(countRows?.[0]?.c ?? countRows?.[0]?.count ?? 0);
+    if (count < 64) {
+      console.log(`[Districts] Initializing/syncing ${BANGLADESH_DISTRICTS.length} Bangladesh districts in database...`);
+      for (let i = 0; i < BANGLADESH_DISTRICTS.length; i++) {
+        const d = BANGLADESH_DISTRICTS[i];
+        try {
+          await dbPool.execute(
+            `INSERT INTO districts (id, name, name_bn, division, division_bn, is_active, sort_order)
+             VALUES (?, ?, ?, ?, ?, 1, ?)
+             ON DUPLICATE KEY UPDATE name = VALUES(name), name_bn = VALUES(name_bn), division = VALUES(division), division_bn = VALUES(division_bn)`,
+            [d.id, d.name, d.name_bn, d.division, d.division_bn, i + 1]
+          );
+        } catch {
+          try {
+            const [existsRows] = await dbPool.query("SELECT id FROM districts WHERE id = ?", [d.id]);
+            if (!existsRows || existsRows.length === 0) {
+              await dbPool.execute(
+                `INSERT INTO districts (id, name, name_bn, division, division_bn, is_active, sort_order)
+                 VALUES (?, ?, ?, ?, ?, 1, ?)`,
+                [d.id, d.name, d.name_bn, d.division, d.division_bn, i + 1]
+              );
+            }
+          } catch (innerErr) {
+            console.warn(`[Districts] Notice inserting district ${d.id}:`, innerErr.message);
+          }
+        }
+      }
+      console.log("[Districts] 64 Bangladesh districts populated successfully.");
+    }
+  } catch (err) {
+    console.error("[Districts] ensureDistrictsTableInDb error:", err.message);
+    throw err;
+  }
+}
 
 // server/sqliteAdapter.ts
 var sqliteDb = null;
@@ -893,6 +977,7 @@ async function initDatabase() {
     isMysqlActive = true;
     console.log(`[MySQL] Successfully connected to database: ${dbName} on ${dbHost}:${dbPort}`);
     connection.release();
+    await ensureDistrictsTableInDb(mysqlPool);
   } catch (err) {
     isMysqlActive = false;
     console.log(`[Database] MySQL not reachable at ${dbHost}:${dbPort} (${err.code || err.message}).`);
@@ -2128,6 +2213,7 @@ router2.delete("/compounders/:id", async (req, res) => {
 });
 router2.get("/districts", async (req, res) => {
   try {
+    await ensureDistrictsTableInDb(db_default);
     const [districts] = await db_default.query(`
       SELECT d.*,
         (SELECT COUNT(DISTINCT c.id) FROM chambers c 
@@ -2137,17 +2223,36 @@ router2.get("/districts", async (req, res) => {
     `);
     res.json({ districts });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error in GET /api/admin/districts:", err.message);
+    try {
+      await ensureDistrictsTableInDb(db_default);
+      const [districts] = await db_default.query("SELECT * FROM districts ORDER BY division ASC, sort_order ASC");
+      return res.json({ districts });
+    } catch {
+      res.json({ districts: BANGLADESH_DISTRICTS.map((d, i) => ({ ...d, is_active: 1, sort_order: i + 1 })) });
+    }
   }
 });
 router2.post("/districts/toggle", async (req, res) => {
   try {
+    await ensureDistrictsTableInDb(db_default);
     const adminUser = req.user;
     const { id, is_active } = req.body;
     if (!id) return res.status(400).json({ error: "District ID is required." });
     const newStatus = is_active ? 1 : 0;
-    await db_default.execute("UPDATE districts SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [newStatus, id]);
-    await logActivity(adminUser.id, "UPDATE_DISTRICT_STATUS", `Set district ${id} is_active to ${newStatus}`);
+    try {
+      await db_default.execute("UPDATE districts SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [newStatus, id]);
+    } catch (updateErr) {
+      if (updateErr.message && (updateErr.message.includes("doesn't exist") || updateErr.message.includes("no such table"))) {
+        await ensureDistrictsTableInDb(db_default);
+        await db_default.execute("UPDATE districts SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [newStatus, id]);
+      } else {
+        throw updateErr;
+      }
+    }
+    if (adminUser?.id) {
+      await logActivity(adminUser.id, "UPDATE_DISTRICT_STATUS", `Set district ${id} is_active to ${newStatus}`);
+    }
     res.json({ success: true, id, is_active: newStatus === 1 });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2157,31 +2262,51 @@ router2.post("/districts/batch", async (req, res) => {
   try {
     const adminUser = req.user;
     const { action, division, active_ids } = req.body;
-    if (action === "select_all") {
-      await db_default.execute("UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP");
-    } else if (action === "deselect_all") {
-      await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP");
-    } else if (action === "select_division" && division) {
-      await db_default.execute("UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE division = ?", [division]);
-    } else if (action === "deselect_division" && division) {
-      await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE division = ?", [division]);
-    } else if (Array.isArray(active_ids)) {
-      await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP");
-      if (active_ids.length > 0) {
-        const placeholders = active_ids.map(() => "?").join(",");
-        await db_default.execute(`UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, active_ids);
+    const performUpdate = async () => {
+      if (action === "select_all") {
+        await db_default.execute("UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP");
+      } else if (action === "deselect_all") {
+        await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP");
+      } else if (action === "select_division" && division) {
+        await db_default.execute("UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE division = ?", [division]);
+      } else if (action === "deselect_division" && division) {
+        await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE division = ?", [division]);
+      } else if (Array.isArray(active_ids)) {
+        await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP");
+        if (active_ids.length > 0) {
+          const placeholders = active_ids.map(() => "?").join(",");
+          await db_default.execute(`UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, active_ids);
+        }
       }
+    };
+    try {
+      await ensureDistrictsTableInDb(db_default);
+      await performUpdate();
+    } catch (batchErr) {
+      console.warn("[Admin Districts] First update attempt failed, ensuring table and retrying:", batchErr.message);
+      await ensureDistrictsTableInDb(db_default);
+      await performUpdate();
     }
-    const [updated] = await db_default.query(`
-      SELECT d.*,
-        (SELECT COUNT(DISTINCT c.id) FROM chambers c 
-         WHERE c.city LIKE CONCAT('%', d.name, '%') OR c.city LIKE CONCAT('%', d.name_bn, '%')) as chamber_count
-      FROM districts d
-      ORDER BY d.division ASC, d.sort_order ASC
-    `);
-    await logActivity(adminUser.id, "BATCH_UPDATE_DISTRICTS", `Batch updated districts (${action || "custom"})`);
+    let updated = [];
+    try {
+      const [rows] = await db_default.query(`
+        SELECT d.*,
+          (SELECT COUNT(DISTINCT c.id) FROM chambers c 
+           WHERE c.city LIKE CONCAT('%', d.name, '%') OR c.city LIKE CONCAT('%', d.name_bn, '%')) as chamber_count
+        FROM districts d
+        ORDER BY d.division ASC, d.sort_order ASC
+      `);
+      updated = rows;
+    } catch {
+      const [rows] = await db_default.query("SELECT * FROM districts ORDER BY division ASC, sort_order ASC");
+      updated = rows;
+    }
+    if (adminUser?.id) {
+      await logActivity(adminUser.id, "BATCH_UPDATE_DISTRICTS", `Batch updated districts (${action || "custom"})`);
+    }
     res.json({ success: true, districts: updated });
   } catch (err) {
+    console.error("Error in POST /api/admin/districts/batch:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2220,6 +2345,7 @@ router3.get("/specialties", async (req, res) => {
 });
 router3.get("/districts", async (req, res) => {
   try {
+    await ensureDistrictsTableInDb(db_default);
     const { all } = req.query;
     const query = all === "1" ? "SELECT * FROM districts ORDER BY division ASC, sort_order ASC" : "SELECT * FROM districts WHERE is_active = 1 ORDER BY division ASC, sort_order ASC";
     const [rows] = await db_default.query(query);

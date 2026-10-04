@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { RowDataPacket } from 'mysql2/promise';
-import { BANGLADESH_DISTRICTS, getDistrictSearchTerms } from '../districts.js';
+import { BANGLADESH_DISTRICTS, getDistrictSearchTerms, ensureDistrictsTableInDb } from '../districts.js';
 
 const router = Router();
 
@@ -40,6 +40,7 @@ router.get('/specialties', async (req, res) => {
 // 1.1 Get Bangladesh Districts (Returns active districts configured by Admin)
 router.get('/districts', async (req, res) => {
   try {
+    await ensureDistrictsTableInDb(pool);
     const { all } = req.query;
     const query = all === '1'
       ? 'SELECT * FROM districts ORDER BY division ASC, sort_order ASC'

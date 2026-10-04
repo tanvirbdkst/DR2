@@ -107,3 +107,101 @@ export function getDistrictSearchTerms(term: string): string[] {
   const terms = [district.name, district.name_bn, ...(district.aliases || [])];
   return Array.from(new Set(terms));
 }
+
+export async function ensureDistrictsTableInDb(dbPool: any): Promise<void> {
+  try {
+    // 1. First test if table already exists and has records
+    try {
+      const [testRows]: any = await dbPool.query('SELECT COUNT(*) as c FROM districts');
+      const currentCount = Number(testRows?.[0]?.c ?? testRows?.[0]?.count ?? 0);
+      if (currentCount >= 64) {
+        return; // Table exists and is populated
+      }
+    } catch {
+      // Table doesn't exist yet, proceed to create it
+    }
+
+    // 2. Try creating table with MySQL / MariaDB syntax
+    let tableCreated = false;
+    try {
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS districts (
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          name_bn VARCHAR(100) NOT NULL,
+          division VARCHAR(50) NOT NULL,
+          division_bn VARCHAR(50) NOT NULL,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      tableCreated = true;
+    } catch (mysqlErr: any) {
+      console.warn('[Districts] MySQL create table notice (trying portable syntax):', mysqlErr.message);
+    }
+
+    // 3. Fallback portable syntax (for SQLite or basic MySQL)
+    if (!tableCreated) {
+      try {
+        await dbPool.query(`
+          CREATE TABLE IF NOT EXISTS districts (
+            id VARCHAR(64) NOT NULL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            name_bn VARCHAR(100) NOT NULL,
+            division VARCHAR(50) NOT NULL,
+            division_bn VARCHAR(50) NOT NULL,
+            is_active INT NOT NULL DEFAULT 1,
+            sort_order INT NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+      } catch (portErr: any) {
+        console.error('[Districts] Fatal: Could not create districts table:', portErr.message);
+        throw portErr;
+      }
+    }
+
+    // 4. Verify table now exists
+    const [countRows]: any = await dbPool.query('SELECT COUNT(*) as c FROM districts');
+    const count = Number(countRows?.[0]?.c ?? countRows?.[0]?.count ?? 0);
+
+    // 5. Populate missing districts
+    if (count < 64) {
+      console.log(`[Districts] Initializing/syncing ${BANGLADESH_DISTRICTS.length} Bangladesh districts in database...`);
+      for (let i = 0; i < BANGLADESH_DISTRICTS.length; i++) {
+        const d = BANGLADESH_DISTRICTS[i];
+        try {
+          // Attempt MySQL INSERT ... ON DUPLICATE KEY UPDATE
+          await dbPool.execute(
+            `INSERT INTO districts (id, name, name_bn, division, division_bn, is_active, sort_order)
+             VALUES (?, ?, ?, ?, ?, 1, ?)
+             ON DUPLICATE KEY UPDATE name = VALUES(name), name_bn = VALUES(name_bn), division = VALUES(division), division_bn = VALUES(division_bn)`,
+            [d.id, d.name, d.name_bn, d.division, d.division_bn, i + 1]
+          );
+        } catch {
+          // Fallback for SQLite / generic DB: check if exists, otherwise insert
+          try {
+            const [existsRows]: any = await dbPool.query('SELECT id FROM districts WHERE id = ?', [d.id]);
+            if (!existsRows || existsRows.length === 0) {
+              await dbPool.execute(
+                `INSERT INTO districts (id, name, name_bn, division, division_bn, is_active, sort_order)
+                 VALUES (?, ?, ?, ?, ?, 1, ?)`,
+                [d.id, d.name, d.name_bn, d.division, d.division_bn, i + 1]
+              );
+            }
+          } catch (innerErr: any) {
+            console.warn(`[Districts] Notice inserting district ${d.id}:`, innerErr.message);
+          }
+        }
+      }
+      console.log('[Districts] 64 Bangladesh districts populated successfully.');
+    }
+  } catch (err: any) {
+    console.error('[Districts] ensureDistrictsTableInDb error:', err.message);
+    throw err;
+  }
+}
+
