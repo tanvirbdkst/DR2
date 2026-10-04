@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stethoscope, ShieldCheck, Clock, MapPin, Phone } from 'lucide-react';
+import { ShieldCheck, Clock, MapPin, Phone } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
 export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNavigate }) => {
@@ -11,14 +11,21 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-white">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
-                <Stethoscope className="w-5 h-5" />
-              </div>
-              <span className="text-base font-bold tracking-tight">
-                Daktar <span className="text-emerald-400">Serial</span>
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('home')}
+              aria-label="Daktar Serial — Home"
+              title="Daktar Serial"
+              className="flex items-center cursor-pointer w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            >
+              <img
+                src="/logo.png"
+                alt="Daktar Serial"
+                width={1254}
+                height={1254}
+                className="h-12 w-auto max-w-[64px] object-contain rounded-xl ring-1 ring-white/10"
+              />
+            </button>
             <p className="text-slate-400 text-xs leading-relaxed">
               {t(
                 'Direct chamber doctor serial booking platform in Bangladesh. Pick serial number, check live queue status, and visit chamber without long waiting.',

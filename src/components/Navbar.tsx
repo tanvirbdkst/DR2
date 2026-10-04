@@ -29,23 +29,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
       {/* Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <div
+          {/* Logo — clickable brand mark that routes home ("/") */}
+          <button
+            type="button"
             onClick={() => setCurrentView('home')}
-            className="flex items-center gap-2.5 cursor-pointer group"
+            aria-label="Daktar Serial — Home"
+            title="Daktar Serial"
+            className="flex items-center cursor-pointer group shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-              <Stethoscope className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xl font-bold tracking-tight text-slate-900 block leading-tight">
-                Daktar <span className="text-emerald-600">Serial</span>
-              </span>
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400 block">
-                {t('Doctor Chamber Booking', 'ডাক্তার চেম্বার বুকিং')}
-              </span>
-            </div>
-          </div>
+            <img
+              src="/logo.png"
+              alt="Daktar Serial"
+              width={1254}
+              height={1254}
+              className="h-10 w-auto sm:h-12 max-w-[44px] sm:max-w-[52px] object-contain rounded-xl shadow-sm ring-1 ring-slate-900/5 group-hover:scale-[1.03] transition-transform"
+            />
+          </button>
 
           {/* Nav Links */}
           <nav className="hidden md:flex items-center gap-1">
