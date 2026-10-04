@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, MapPin, Stethoscope, Filter, Building2, Calendar, Award, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Specialty } from '../types.js';
-import { District, BANGLADESH_DISTRICTS, groupDistrictsByDivision } from '../data/districts.js';
+import { District, groupDistrictsByDivision } from '../data/districts.js';
+import { getApiUrl } from '../config/api.js';
 
 interface DoctorsPageProps {
   initialFilters?: { search: string; specialty: string; location: string };
@@ -17,27 +18,50 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [activeDistricts, setActiveDistricts] = useState<District[]>([]);
+  const [districtsLoading, setDistrictsLoading] = useState(true);
+  const [districtsError, setDistrictsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchActiveDistricts = async () => {
+    setDistrictsLoading(true);
+    setDistrictsError(null);
+    try {
+      const res = await fetch(getApiUrl('/api/public/districts'));
+      if (res.ok) {
+        const data = await res.json();
+        const rawDistricts: District[] = data.districts || [];
+        // Strictly filter to active districts only
+        const activeOnly = rawDistricts.filter(
+          (d) => d.is_active === undefined || Number(d.is_active) === 1 || d.is_active === true
+        );
+        setActiveDistricts(activeOnly);
+      } else {
+        setDistrictsError('Failed to load districts from server');
+        setActiveDistricts([]);
+      }
+    } catch (err: any) {
+      console.error('Error fetching public active districts in DoctorsPage:', err);
+      setDistrictsError(err.message || 'Network error');
+      setActiveDistricts([]);
+    } finally {
+      setDistrictsLoading(false);
+    }
+  };
 
   // Fetch specialties and active districts
   useEffect(() => {
-    fetch('/api/public/specialties')
+    fetch(getApiUrl('/api/public/specialties'))
       .then((r) => r.json())
       .then((data) => setSpecialties(data.specialties || []))
       .catch((err) => console.error(err));
 
-    fetch('/api/public/districts')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.districts && data.districts.length > 0) {
-          setActiveDistricts(data.districts);
-        }
-      })
-      .catch((err) => console.error(err));
+    fetchActiveDistricts();
   }, []);
 
+  // Public search dropdown: ONLY group districts that were returned by the API as active.
+  // Never fallback to BANGLADESH_DISTRICTS so inactive districts stay hidden.
   const divisions = useMemo(() => {
-    return groupDistrictsByDivision(activeDistricts.length > 0 ? activeDistricts : BANGLADESH_DISTRICTS);
+    return groupDistrictsByDivision(activeDistricts);
   }, [activeDistricts]);
 
   // Fetch doctors matching filters
@@ -142,22 +166,39 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
             </div>
             <select
               value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+              onChange={(e) => {
+                if (districtsError) {
+                  fetchActiveDistricts();
+                } else {
+                  setLocationFilter(e.target.value);
+                }
+              }}
+              disabled={districtsLoading}
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white disabled:bg-slate-50 disabled:text-slate-400"
             >
-              <option value="">{t('All Districts (Location)', 'সকল জেলা (লোকেশন)')}</option>
-              {divisions.map((division) => (
-                <optgroup
-                  key={division.id}
-                  label={lang === 'bn' ? `${division.name_bn} বিভাগ` : `${division.name} Division`}
-                >
-                  {division.districts.map((d) => (
-                    <option key={d.id} value={d.name}>
-                      {lang === 'bn' ? d.name_bn : d.name}
-                    </option>
+              {districtsLoading ? (
+                <option value="">{t('Loading active districts...', 'সক্রিয় জেলা লোড হচ্ছে...')}</option>
+              ) : districtsError ? (
+                <option value="">{t('Could not load districts (Click to retry)', 'জেলা লোড করা যায়নি (পুনরায় চেষ্টা করুন)')}</option>
+              ) : activeDistricts.length === 0 ? (
+                <option value="">{t('No active districts available', 'কোনো সক্রিয় জেলা উপলব্ধ নেই')}</option>
+              ) : (
+                <>
+                  <option value="">{t('All Districts (Location)', 'সকল জেলা (লোকেশন)')}</option>
+                  {divisions.map((division) => (
+                    <optgroup
+                      key={division.id}
+                      label={lang === 'bn' ? `${division.name_bn} বিভাগ` : `${division.name} Division`}
+                    >
+                      {division.districts.map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {lang === 'bn' ? d.name_bn : d.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
-                </optgroup>
-              ))}
+                </>
+              )}
             </select>
           </div>
 

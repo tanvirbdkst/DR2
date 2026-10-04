@@ -2349,10 +2349,19 @@ router3.get("/districts", async (req, res) => {
     const { all } = req.query;
     const query = all === "1" ? "SELECT * FROM districts ORDER BY division ASC, sort_order ASC" : "SELECT * FROM districts WHERE is_active = 1 ORDER BY division ASC, sort_order ASC";
     const [rows] = await db_default.query(query);
-    const districts = rows && rows.length > 0 ? rows : BANGLADESH_DISTRICTS;
-    res.json({ districts });
+    res.json({ districts: rows || [] });
   } catch (err) {
-    res.json({ districts: BANGLADESH_DISTRICTS });
+    console.error("Error in GET /api/public/districts:", err.message);
+    try {
+      await ensureDistrictsTableInDb(db_default);
+      const { all } = req.query;
+      const query = all === "1" ? "SELECT * FROM districts ORDER BY division ASC, sort_order ASC" : "SELECT * FROM districts WHERE is_active = 1 ORDER BY division ASC, sort_order ASC";
+      const [rows] = await db_default.query(query);
+      return res.json({ districts: rows || [] });
+    } catch (retryErr) {
+      console.error("Retry failed in GET /api/public/districts:", retryErr.message);
+      res.status(500).json({ error: retryErr.message, districts: [] });
+    }
   }
 });
 router3.get("/doctors", async (req, res) => {
