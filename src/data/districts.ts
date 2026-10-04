@@ -5,6 +5,8 @@ export interface District {
   division: string;
   division_bn: string;
   aliases?: string[];
+  is_active?: number | boolean;
+  chamber_count?: number;
 }
 
 export interface Division {
@@ -165,3 +167,39 @@ export function getDistrictSearchTerms(term: string): string[] {
   const terms = [district.name, district.name_bn, ...(district.aliases || [])];
   return Array.from(new Set(terms));
 }
+
+export function groupDistrictsByDivision(districts: District[]): Division[] {
+  const divisionOrder: { id: string; name: string; name_bn: string }[] = [
+    { id: 'dhaka', name: 'Dhaka', name_bn: 'ঢাকা' },
+    { id: 'chattogram', name: 'Chattogram', name_bn: 'চট্টগ্রাম' },
+    { id: 'rajshahi', name: 'Rajshahi', name_bn: 'রাজশাহী' },
+    { id: 'khulna', name: 'Khulna', name_bn: 'খুলনা' },
+    { id: 'barishal', name: 'Barishal', name_bn: 'বরিশাল' },
+    { id: 'sylhet', name: 'Sylhet', name_bn: 'সিলেট' },
+    { id: 'rangpur', name: 'Rangpur', name_bn: 'রংপুর' },
+    { id: 'mymensingh', name: 'Mymensingh', name_bn: 'ময়মনসিংহ' },
+  ];
+
+  const map = new Map<string, Division>();
+  divisionOrder.forEach((div) => {
+    map.set(div.name.toLowerCase(), { ...div, districts: [] });
+  });
+
+  districts.forEach((d) => {
+    const key = (d.division || '').toLowerCase();
+    const entry = map.get(key);
+    if (entry) {
+      entry.districts.push(d);
+    } else {
+      map.set(key, {
+        id: key,
+        name: d.division || 'Other',
+        name_bn: d.division_bn || d.division || 'অন্যান্য',
+        districts: [d],
+      });
+    }
+  });
+
+  return Array.from(map.values()).filter((div) => div.districts.length > 0);
+}
+

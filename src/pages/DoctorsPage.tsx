@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, MapPin, Stethoscope, Filter, Building2, Calendar, Award, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Specialty } from '../types.js';
-import { BANGLADESH_DIVISIONS } from '../data/districts.js';
+import { District, BANGLADESH_DISTRICTS, groupDistrictsByDivision } from '../data/districts.js';
 
 interface DoctorsPageProps {
   initialFilters?: { search: string; specialty: string; location: string };
@@ -16,15 +16,29 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
   const [locationFilter, setLocationFilter] = useState(initialFilters?.location || '');
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [activeDistricts, setActiveDistricts] = useState<District[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch specialties
+  // Fetch specialties and active districts
   useEffect(() => {
     fetch('/api/public/specialties')
       .then((r) => r.json())
       .then((data) => setSpecialties(data.specialties || []))
       .catch((err) => console.error(err));
+
+    fetch('/api/public/districts')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.districts && data.districts.length > 0) {
+          setActiveDistricts(data.districts);
+        }
+      })
+      .catch((err) => console.error(err));
   }, []);
+
+  const divisions = useMemo(() => {
+    return groupDistrictsByDivision(activeDistricts.length > 0 ? activeDistricts : BANGLADESH_DISTRICTS);
+  }, [activeDistricts]);
 
   // Fetch doctors matching filters
   const fetchDoctors = async () => {
@@ -132,7 +146,7 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
               className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
             >
               <option value="">{t('All Districts (Location)', 'সকল জেলা (লোকেশন)')}</option>
-              {BANGLADESH_DIVISIONS.map((division) => (
+              {divisions.map((division) => (
                 <optgroup
                   key={division.id}
                   label={lang === 'bn' ? `${division.name_bn} বিভাগ` : `${division.name} Division`}

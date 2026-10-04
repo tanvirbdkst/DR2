@@ -1,19 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShieldCheck, Users, Stethoscope, CalendarCheck, CheckCircle2,
   XCircle, AlertCircle, Plus, Search, Filter, ShieldAlert, Sparkles,
   RefreshCw, LogOut, ArrowRight, Lock, Mail, KeyRound, Eye, EyeOff,
-  Clock, Check, Phone, MapPin, FileText
+  Clock, Check, Phone, MapPin, FileText, Save, CheckSquare, Square, RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Specialty } from '../types.js';
+import { District, BANGLADESH_DISTRICTS } from '../data/districts.js';
 
 interface AdminDashboardPageProps {
   onNavigate?: (view: string) => void;
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
-  const { user, login, logout, t } = useAuth();
+  const { user, login, logout, t, lang } = useAuth();
 
   // Login Gate State (for unauthenticated or non-admin users)
   const [loginEmail, setLoginEmail] = useState('admin@daktarserial.com');
@@ -23,7 +24,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Dashboard Data State
-  const [activeTab, setActiveTab] = useState<'pending' | 'doctors' | 'appointments' | 'patients' | 'specialties' | 'compounders' | 'logs'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'doctors' | 'appointments' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'logs'>('pending');
   const [stats, setStats] = useState({
     totalDoctors: 0,
     pendingDoctors: 0,
@@ -39,8 +40,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [appointments, setAppointments] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [districts, setDistricts] = useState<District[]>(() => {
+    return BANGLADESH_DISTRICTS.map((d, idx) => ({
+      ...d,
+      is_active: 1,
+      sort_order: idx + 1,
+    }));
+  });
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Search Locations / Districts state
+  const [districtSearch, setDistrictSearch] = useState('');
+  const [districtDivisionFilter, setDistrictDivisionFilter] = useState('all');
+  const [markedDistrictIds, setMarkedDistrictIds] = useState<Set<string>>(() => {
+    return new Set(BANGLADESH_DISTRICTS.map((d) => d.id));
+  });
+  const [savingDistricts, setSavingDistricts] = useState(false);
+  const [districtSaveSuccess, setDistrictSaveSuccess] = useState<string | null>(null);
 
   // Compounder / Chamber Staff Management
   const [compounders, setCompounders] = useState<any[]>([]);
@@ -77,7 +94,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     setLoading(true);
     setActionError(null);
     try {
-      const [statsRes, pendingRes, docsRes, patientsRes, specRes, apptsRes, compRes, availDocsRes] = await Promise.all([
+      const [statsRes, pendingRes, docsRes, patientsRes, specRes, apptsRes, compRes, availDocsRes, distRes] = await Promise.all([
         fetch('/api/admin/stats'),
         fetch('/api/admin/doctors/pending'),
         fetch('/api/admin/doctors'),
@@ -86,6 +103,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         fetch('/api/admin/appointments').catch(() => null),
         fetch('/api/admin/compounders').catch(() => null),
         fetch('/api/admin/compounders/available-doctors').catch(() => null),
+        fetch('/api/admin/districts').catch(() => null),
       ]);
 
       if (statsRes.ok) {
@@ -139,6 +157,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         const adData = await availDocsRes.json();
         setAssignableDoctors(adData.doctors || []);
       }
+
+      if (distRes && distRes.ok) {
+        const dtData = await distRes.json();
+        const incoming: District[] = dtData.districts || [];
+        if (incoming.length > 0) {
+          const merged = BANGLADESH_DISTRICTS.map((baseD, idx) => {
+            const found = incoming.find((item) => item.id.toLowerCase() === baseD.id.toLowerCase());
+            return found ? { ...baseD, ...found } : { ...baseD, is_active: 1, sort_order: idx + 1 };
+          });
+          setDistricts(merged);
+          setMarkedDistrictIds(new Set(merged.filter((d) => Boolean(d.is_active)).map((d) => d.id)));
+        }
+      }
     } catch (err: any) {
       console.error('Failed to load admin data:', err);
       setActionError(err.message || 'Failed to fetch admin data.');
@@ -147,11 +178,170 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   }, [user]);
 
+  // Standalone district loader that runs reliably even before admin user state resolves
+  const fetchDistricts = useCallback(async () => {
+    try {
+      let res = await fetch('/api/admin/districts');
+      if (!res.ok) {
+        res = await fetch('/api/public/districts?all=1');
+      }
+      if (res.ok) {
+        const dtData = await res.json();
+        const incoming: District[] = dtData.districts || [];
+        if (incoming.length > 0) {
+          const merged = BANGLADESH_DISTRICTS.map((baseD, idx) => {
+            const found = incoming.find((item) => item.id.toLowerCase() === baseD.id.toLowerCase());
+            return found ? { ...baseD, ...found } : { ...baseD, is_active: 1, sort_order: idx + 1 };
+          });
+          setDistricts(merged);
+          setMarkedDistrictIds(new Set(merged.filter((d) => Boolean(d.is_active)).map((d) => d.id)));
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch active districts from API, using default 64:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDistricts();
+  }, [fetchDistricts]);
+
+  useEffect(() => {
+    if (activeTab === 'locations') {
+      fetchDistricts();
+    }
+  }, [activeTab, fetchDistricts]);
+
   useEffect(() => {
     if (user?.role === 'admin') {
       loadAdminData();
     }
   }, [user, loadAdminData]);
+
+  // District Search & Division Filter
+  const filteredDistricts = useMemo(() => {
+    const search = districtSearch.toLowerCase().trim();
+
+    return districts.filter((d) => {
+      const matchSearch =
+        !search ||
+        d.name.toLowerCase().includes(search) ||
+        d.name_bn.includes(search) ||
+        d.division.toLowerCase().includes(search) ||
+        d.division_bn.includes(search) ||
+        (d.aliases && d.aliases.some((a) => a.toLowerCase().includes(search)));
+
+      if (!matchSearch) return false;
+
+      // If user typed a search keyword (e.g. "Kushti"), allow it to match across all divisions
+      // so searching "Kushti" while "Sylhet" tab is selected finds Kushtia immediately!
+      if (search) {
+        return true;
+      }
+
+      // No search keyword typed: strictly filter by division tab
+      if (districtDivisionFilter === 'all') return true;
+      return d.division.toLowerCase() === districtDivisionFilter.toLowerCase();
+    });
+  }, [districts, districtSearch, districtDivisionFilter]);
+
+  const savedActiveDistrictIds = useMemo(() => {
+    return new Set(districts.filter((d) => Boolean(d.is_active)).map((d) => d.id));
+  }, [districts]);
+
+  const hasUnsavedDistrictChanges = useMemo(() => {
+    if (markedDistrictIds.size !== savedActiveDistrictIds.size) return true;
+    for (const id of markedDistrictIds) {
+      if (!savedActiveDistrictIds.has(id)) return true;
+    }
+    return false;
+  }, [markedDistrictIds, savedActiveDistrictIds]);
+
+  const toggleMarkDistrict = (id: string) => {
+    setDistrictSaveSuccess(null);
+    setMarkedDistrictIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const markAllDistricts = () => {
+    setDistrictSaveSuccess(null);
+    setMarkedDistrictIds(new Set(districts.map((d) => d.id)));
+  };
+
+  const unmarkAllDistricts = () => {
+    setDistrictSaveSuccess(null);
+    setMarkedDistrictIds(new Set());
+  };
+
+  const markDivisionDistricts = (divisionName: string) => {
+    setDistrictSaveSuccess(null);
+    const targetDistricts = districts.filter(
+      (d) => d.division.toLowerCase() === divisionName.toLowerCase()
+    );
+    setMarkedDistrictIds((prev) => {
+      const next = new Set(prev);
+      targetDistricts.forEach((d) => next.add(d.id));
+      return next;
+    });
+  };
+
+  const unmarkDivisionDistricts = (divisionName: string) => {
+    setDistrictSaveSuccess(null);
+    const targetDistricts = districts.filter(
+      (d) => d.division.toLowerCase() === divisionName.toLowerCase()
+    );
+    setMarkedDistrictIds((prev) => {
+      const next = new Set(prev);
+      targetDistricts.forEach((d) => next.delete(d.id));
+      return next;
+    });
+  };
+
+  const handleResetDistrictSelection = () => {
+    setDistrictSaveSuccess(null);
+    setMarkedDistrictIds(new Set(savedActiveDistrictIds));
+  };
+
+  const handleSaveDistrictSelection = async () => {
+    setSavingDistricts(true);
+    setActionError(null);
+    setDistrictSaveSuccess(null);
+    try {
+      const activeIds = Array.from(markedDistrictIds);
+      const res = await fetch('/api/admin/districts/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active_ids: activeIds }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.districts) {
+          setDistricts(data.districts);
+          setMarkedDistrictIds(new Set(data.districts.filter((d: any) => Boolean(d.is_active)).map((d: any) => d.id)));
+        }
+        const msg = lang === 'bn'
+          ? `সফলভাবে সেভ করা হয়েছে! নির্বাচিত ${activeIds.length}টি জেলা এখন পাবলিক সার্চ লোকেশন বক্সে সক্রিয়।`
+          : `Saved successfully! Selected ${activeIds.length} districts are now active in public search location box.`;
+        setDistrictSaveSuccess(msg);
+        setActionMessage(msg);
+        setTimeout(() => setDistrictSaveSuccess(null), 6000);
+      } else {
+        const errData = await res.json();
+        setActionError(errData.error || 'Failed to save districts');
+      }
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to save districts');
+    } finally {
+      setSavingDistricts(false);
+    }
+  };
 
   // Fast 1-Click Login as Admin
   const handleQuickAdminLogin = async () => {
@@ -776,6 +966,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalCompounders || compounders.length}</div>
           <p className="text-[10px] text-slate-500 mt-1">Chamber staff</p>
         </div>
+
+        <div
+          onClick={() => setActiveTab('locations')}
+          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
+            activeTab === 'locations' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-emerald-300'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">{t('Search Locations', 'সার্চ লোকেশন')}</span>
+            <MapPin className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+            {districts.filter((d) => Boolean(d.is_active)).length}
+            <span className="text-xs font-normal text-slate-400 ml-1">/ {districts.length || 64}</span>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1">{t('Active in search', 'সার্চে সক্রিয় জেলা')}</p>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -835,6 +1042,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             }`}
           >
             Medical Specialties ({specialties.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('locations')}
+            className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'locations'
+                ? 'border-emerald-600 text-emerald-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Search Locations ({districts.filter((d) => Boolean(d.is_active)).length}/{districts.length || 64})</span>
           </button>
           <button
             onClick={() => setActiveTab('compounders')}
@@ -1311,6 +1529,391 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: SEARCH LOCATIONS & DISTRICTS MANAGEMENT */}
+      {/* ========================================================= */}
+      {activeTab === 'locations' && (
+        <div className="space-y-6 pb-20">
+          {/* Header & Overview */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                      <span>{t('Search Location Districts Management', 'সার্চ লোকেশন ও জেলা নির্বাচন')}</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">
+                        {t('District-by-District Mark', 'আলাদা আলাদা জেলা মার্ক ও সেভ')}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {t(
+                        'Select/Mark which districts appear in the public search location dropdown. Only checked districts will be displayed. Click "Save Selection" to save changes.',
+                        'পাবলিক সার্চ বক্সের লোকেশন ড্রপডাউনে যে যে জেলা দেখাতে চান সেগুলোতে মার্ক (টিক) দিন এবং নিচে বা উপরে "সেভ করুন" বাটনে ক্লিক করে ডাটাবেজে সংরক্ষণ করুন।'
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status pill & Main Save Actions */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {hasUnsavedDistrictChanges ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold animate-pulse">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>{t('Unsaved changes!', 'অসংরক্ষিত পরিবর্তন আছে!')}</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{t('Live & Saved', 'সংরক্ষিত ও লাইভ')}</span>
+                  </span>
+                )}
+
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold">
+                  {t(
+                    `Marked: ${markedDistrictIds.size} of ${districts.length || 64}`,
+                    `মার্ক করা: ${markedDistrictIds.size} / ${districts.length || 64} জেলা`
+                  )}
+                </span>
+
+                {/* Primary Save Button */}
+                <button
+                  type="button"
+                  disabled={savingDistricts}
+                  onClick={handleSaveDistrictSelection}
+                  className={`px-4 py-2 rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                    hasUnsavedDistrictChanges
+                      ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-500/30'
+                      : 'bg-emerald-700 hover:bg-emerald-800'
+                  }`}
+                >
+                  <Save className="w-4 h-4" />
+                  <span>
+                    {savingDistricts
+                      ? t('Saving...', 'সেভ হচ্ছে...')
+                      : `${t('Save Selection', 'সেভ করুন')} (${markedDistrictIds.size})`}
+                  </span>
+                </button>
+
+                {hasUnsavedDistrictChanges && (
+                  <button
+                    type="button"
+                    disabled={savingDistricts}
+                    onClick={handleResetDistrictSelection}
+                    className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1"
+                    title={t('Reset to saved districts', 'আগের সেভ করা অবস্থায় ফিরুন')}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{t('Reset', 'রিসেট')}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={savingDistricts}
+                  onClick={markAllDistricts}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-2xs transition cursor-pointer"
+                >
+                  {t('Mark All (64)', 'সব মার্ক (৬৪)')}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={savingDistricts}
+                  onClick={unmarkAllDistricts}
+                  className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer"
+                >
+                  {t('Unmark All', 'সব আনমার্ক')}
+                </button>
+              </div>
+            </div>
+
+            {/* Success Notification Alert */}
+            {districtSaveSuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs sm:text-sm font-semibold flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>{districtSaveSuccess}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDistrictSaveSuccess(null)}
+                  className="text-emerald-700 hover:text-emerald-900 p-1 cursor-pointer"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Division Filter & District Search */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Search input with clear button */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={districtSearch}
+                  onChange={(e) => setDistrictSearch(e.target.value)}
+                  placeholder={t('Search district by name (e.g. Dhaka, চট্টগ্রাম, Bogura)...', 'জেলার নাম দিয়ে খুঁজুন (যেমন: ঢাকা, Bogura, Sylhet)...')}
+                  className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-hidden bg-white"
+                />
+                {districtSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setDistrictSearch('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title={t('Clear search', 'খোঁজা মুছুন')}
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Division Quick Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                {[
+                  { id: 'all', name: 'All Divisions', name_bn: 'সকল বিভাগ' },
+                  { id: 'dhaka', name: 'Dhaka', name_bn: 'ঢাকা' },
+                  { id: 'chattogram', name: 'Chattogram', name_bn: 'চট্টগ্রাম' },
+                  { id: 'rajshahi', name: 'Rajshahi', name_bn: 'রাজশাহী' },
+                  { id: 'khulna', name: 'Khulna', name_bn: 'খুলনা' },
+                  { id: 'barishal', name: 'Barishal', name_bn: 'বরিশাল' },
+                  { id: 'sylhet', name: 'Sylhet', name_bn: 'সিলেট' },
+                  { id: 'rangpur', name: 'Rangpur', name_bn: 'রংপুর' },
+                  { id: 'mymensingh', name: 'Mymensingh', name_bn: 'ময়মনসিংহ' },
+                ].map((div) => {
+                  const divDistricts = div.id === 'all'
+                    ? districts
+                    : districts.filter((d) => d.division.toLowerCase() === div.name.toLowerCase());
+                  const divMarkedCount = divDistricts.filter((d) => markedDistrictIds.has(d.id)).length;
+
+                  return (
+                    <button
+                      key={div.id}
+                      type="button"
+                      onClick={() => {
+                        setDistrictDivisionFilter(div.id);
+                        if (districtSearch.trim()) setDistrictSearch('');
+                      }}
+                      className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                        districtDivisionFilter === div.id
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>{lang === 'bn' ? div.name_bn : div.name}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        districtDivisionFilter === div.id
+                          ? 'bg-emerald-700/80 text-white'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {divMarkedCount}/{divDistricts.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick action bar for active division */}
+            {districtDivisionFilter !== 'all' && (
+              <div className="pt-2 flex items-center justify-between gap-3 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <div className="font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>
+                    {t('Division Quick Action:', 'বিভাগ অনুযায়ী মার্ক অ্যাকশন:')}{' '}
+                    <strong className="text-emerald-800 capitalize">{districtDivisionFilter}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => markDivisionDistricts(districtDivisionFilter)}
+                    className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold rounded-lg transition cursor-pointer"
+                  >
+                    {t('Mark All in this Division', 'এই বিভাগের সব মার্ক করুন')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unmarkDivisionDistricts(districtDivisionFilter)}
+                    className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition cursor-pointer"
+                  >
+                    {t('Unmark Division', 'এই বিভাগ আনমার্ক করুন')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* District Grid with Clear Individual Checkbox Mark Options */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            {filteredDistricts.map((d) => {
+              const isMarked = markedDistrictIds.has(d.id);
+              const isSavedActive = savedActiveDistrictIds.has(d.id);
+
+              return (
+                <div
+                  key={d.id}
+                  onClick={() => toggleMarkDistrict(d.id)}
+                  className={`p-4 rounded-2xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
+                    isMarked
+                      ? 'bg-emerald-50/80 border-emerald-500 shadow-xs hover:border-emerald-600 ring-2 ring-emerald-500/10'
+                      : 'bg-white border-slate-200 opacity-80 hover:opacity-100 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2.5">
+                    {/* Explicit HTML Checkbox for marking */}
+                    <div className="pt-0.5 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={isMarked}
+                        onChange={() => toggleMarkDistrict(d.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Mark district ${d.name}`}
+                        className="w-5 h-5 rounded-md text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer accent-emerald-600"
+                      />
+                    </div>
+
+                    {/* District Details */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {lang === 'bn' ? `${d.division_bn} বিভাগ` : `${d.division} Div`}
+                        </span>
+                        {d.chamber_count ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-teal-100 text-teal-800 font-bold">
+                            {d.chamber_count} {t('chambers', 'চেম্বার')}
+                          </span>
+                        ) : null}
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-base mt-1 truncate">
+                        {d.name}
+                      </h4>
+                      <p className="text-xs text-emerald-800 font-semibold">
+                        {d.name_bn}
+                      </p>
+                    </div>
+
+                    {/* Visual Checkmark indicator badge */}
+                    <div className="shrink-0">
+                      {isMarked ? (
+                        <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-slate-300">
+                          <Plus className="w-3 h-3" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Footer status */}
+                  <div className="pt-2.5 mt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                    <span className={`font-semibold flex items-center gap-1 ${isMarked ? 'text-emerald-700' : 'text-slate-400'}`}>
+                      {isMarked ? (
+                        <>
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          <span>
+                            {isSavedActive
+                              ? t('✓ Active in Search', '✓ সার্চে সক্রিয়')
+                              : t('✎ Marked (Save to apply)', '✎ চিহ্নিত (সেভ করুন)')}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Square className="w-3.5 h-3.5" />
+                          <span>{t('✕ Hidden from Search', '✕ সার্চে লুকানো')}</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {d.id}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredDistricts.length === 0 && (
+            <div className="bg-white p-12 text-center rounded-2xl border border-slate-200">
+              <MapPin className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <p className="font-semibold text-slate-700">
+                {t('No districts matching your filter', 'আপনার খোঁজার সাথে কোনো জেলা মেলেনি')}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDistrictSearch('');
+                  setDistrictDivisionFilter('all');
+                }}
+                className="mt-3 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+              >
+                {t('Reset District Filters', 'ফিল্টার রিসেট করুন')}
+              </button>
+            </div>
+          )}
+
+          {/* Sticky Floating Save Bar at Bottom */}
+          <div className="sticky bottom-4 z-20 bg-slate-900/95 backdrop-blur-md text-white p-3.5 sm:p-4 rounded-2xl shadow-xl flex items-center justify-between gap-3 border border-slate-700 mt-6">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                  <span>
+                    {t(
+                      `Selected: ${markedDistrictIds.size} of ${districts.length || 64} Districts`,
+                      `${districts.length || 64}টির মধ্যে ${markedDistrictIds.size}টি জেলা মার্ক করা হয়েছে`
+                    )}
+                  </span>
+                  {hasUnsavedDistrictChanges && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 animate-pulse">
+                      {t('Unsaved', 'সেভ বাকি')}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 hidden sm:block">
+                  {t('Only marked districts will appear in public search box dropdown.', 'শুধুমাত্র মার্ক করা জেলাগুলো পাবলিক সার্চ ড্রপডাউনে দেখা যাবে।')}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {hasUnsavedDistrictChanges && (
+                <button
+                  type="button"
+                  onClick={handleResetDistrictSelection}
+                  disabled={savingDistricts}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer"
+                >
+                  {t('Reset', 'রিসেট')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveDistrictSelection}
+                disabled={savingDistricts}
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-lg transition cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>
+                  {savingDistricts
+                    ? t('Saving...', 'সেভ হচ্ছে...')
+                    : `${t('Save Selection', 'সেভ করুন')} (${markedDistrictIds.size})`}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}

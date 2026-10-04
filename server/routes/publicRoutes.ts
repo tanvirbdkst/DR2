@@ -37,9 +37,19 @@ router.get('/specialties', async (req, res) => {
   }
 });
 
-// 1.1 Get Bangladesh Districts
-router.get('/districts', (req, res) => {
-  res.json({ districts: BANGLADESH_DISTRICTS });
+// 1.1 Get Bangladesh Districts (Returns active districts configured by Admin)
+router.get('/districts', async (req, res) => {
+  try {
+    const { all } = req.query;
+    const query = all === '1'
+      ? 'SELECT * FROM districts ORDER BY division ASC, sort_order ASC'
+      : 'SELECT * FROM districts WHERE is_active = 1 ORDER BY division ASC, sort_order ASC';
+    const [rows] = await pool.query<RowDataPacket[]>(query);
+    const districts = (rows && rows.length > 0) ? rows : BANGLADESH_DISTRICTS;
+    res.json({ districts });
+  } catch (err: any) {
+    res.json({ districts: BANGLADESH_DISTRICTS });
+  }
 });
 
 // 2. Search Public Doctors (ONLY APPROVED DOCTORS WITH ACTIVE USER ACCOUNTS ARE RETURNED)

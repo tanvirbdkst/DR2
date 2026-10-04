@@ -877,4 +877,75 @@ router.delete('/compounders/:id', async (req, res) => {
   }
 });
 
+// 11. Districts Management for Search Location
+// 11.1 Get all 64 districts with status
+router.get('/districts', async (req, res) => {
+  try {
+    const [districts] = await pool.query<RowDataPacket[]>(`
+      SELECT d.*,
+        (SELECT COUNT(DISTINCT c.id) FROM chambers c 
+         WHERE c.city LIKE CONCAT('%', d.name, '%') OR c.city LIKE CONCAT('%', d.name_bn, '%')) as chamber_count
+      FROM districts d
+      ORDER BY d.division ASC, d.sort_order ASC
+    `);
+    res.json({ districts });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 11.2 Toggle single district active status
+router.post('/districts/toggle', async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const { id, is_active } = req.body;
+    if (!id) return res.status(400).json({ error: 'District ID is required.' });
+
+    const newStatus = is_active ? 1 : 0;
+    await pool.execute('UPDATE districts SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newStatus, id]);
+    await logActivity(adminUser.id, 'UPDATE_DISTRICT_STATUS', `Set district ${id} is_active to ${newStatus}`);
+
+    res.json({ success: true, id, is_active: newStatus === 1 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 11.3 Batch update districts (select all, deselect all, division toggle, or active list)
+router.post('/districts/batch', async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const { action, division, active_ids } = req.body;
+
+    if (action === 'select_all') {
+      await pool.execute('UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP');
+    } else if (action === 'deselect_all') {
+      await pool.execute('UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP');
+    } else if (action === 'select_division' && division) {
+      await pool.execute('UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE division = ?', [division]);
+    } else if (action === 'deselect_division' && division) {
+      await pool.execute('UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE division = ?', [division]);
+    } else if (Array.isArray(active_ids)) {
+      await pool.execute('UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP');
+      if (active_ids.length > 0) {
+        const placeholders = active_ids.map(() => '?').join(',');
+        await pool.execute(`UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, active_ids);
+      }
+    }
+
+    const [updated] = await pool.query<RowDataPacket[]>(`
+      SELECT d.*,
+        (SELECT COUNT(DISTINCT c.id) FROM chambers c 
+         WHERE c.city LIKE CONCAT('%', d.name, '%') OR c.city LIKE CONCAT('%', d.name_bn, '%')) as chamber_count
+      FROM districts d
+      ORDER BY d.division ASC, d.sort_order ASC
+    `);
+
+    await logActivity(adminUser.id, 'BATCH_UPDATE_DISTRICTS', `Batch updated districts (${action || 'custom'})`);
+    res.json({ success: true, districts: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

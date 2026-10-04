@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search, MapPin, Stethoscope, Calendar, ArrowRight, ShieldCheck, Clock,
   CheckCircle2, Award, Users, Activity, Sparkles, Building2, HeartPulse,
@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { Specialty, DoctorProfile } from '../types.js';
-import { BANGLADESH_DIVISIONS } from '../data/districts.js';
+import { District, BANGLADESH_DISTRICTS, groupDistrictsByDivision } from '../data/districts.js';
 
 const getSpecialtyConfig = (slug: string, name?: string) => {
   const s = `${slug || ''} ${name || ''}`.toLowerCase();
@@ -102,6 +102,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [activeDistricts, setActiveDistricts] = useState<District[]>([]);
   const [showAllSpecialties, setShowAllSpecialties] = useState(false);
   const [featuredDoctors, setFeaturedDoctors] = useState<DoctorProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,9 +110,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
   useEffect(() => {
     async function loadData() {
       try {
-        const [specRes, docRes] = await Promise.all([
+        const [specRes, docRes, distRes] = await Promise.all([
           fetch('/api/public/specialties'),
           fetch('/api/public/doctors'),
+          fetch('/api/public/districts'),
         ]);
 
         if (specRes.ok) {
@@ -123,6 +125,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
           const docData = await docRes.json();
           setFeaturedDoctors(docData.doctors?.slice(0, 4) || []);
         }
+
+        if (distRes.ok) {
+          const distData = await distRes.json();
+          if (distData.districts && distData.districts.length > 0) {
+            setActiveDistricts(distData.districts);
+          }
+        }
       } catch (err) {
         console.error('Error loading home data:', err);
       } finally {
@@ -131,6 +140,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
     }
     loadData();
   }, []);
+
+  const divisions = useMemo(() => {
+    return groupDistrictsByDivision(activeDistricts.length > 0 ? activeDistricts : BANGLADESH_DISTRICTS);
+  }, [activeDistricts]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,7 +224,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white"
                 >
                   <option value="">{t('All Districts (Location)', 'সকল জেলা (লোকেশন)')}</option>
-                  {BANGLADESH_DIVISIONS.map((division) => (
+                  {divisions.map((division) => (
                     <optgroup
                       key={division.id}
                       label={lang === 'bn' ? `${division.name_bn} বিভাগ` : `${division.name} Division`}

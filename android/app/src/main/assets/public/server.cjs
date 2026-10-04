@@ -37,6 +37,97 @@ var import_dotenv = __toESM(require("dotenv"), 1);
 var import_node_sqlite = require("node:sqlite");
 var import_bcryptjs = __toESM(require("bcryptjs"), 1);
 var import_path = __toESM(require("path"), 1);
+
+// server/districts.ts
+var BANGLADESH_DISTRICTS = [
+  // --- Dhaka Division (13 districts) ---
+  { id: "dhaka", name: "Dhaka", name_bn: "\u09A2\u09BE\u0995\u09BE", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "gazipur", name: "Gazipur", name_bn: "\u0997\u09BE\u099C\u09C0\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "narayanganj", name: "Narayanganj", name_bn: "\u09A8\u09BE\u09B0\u09BE\u09AF\u09BC\u09A3\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "tangail", name: "Tangail", name_bn: "\u099F\u09BE\u0999\u09CD\u0997\u09BE\u0987\u09B2", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "narsingdi", name: "Narsingdi", name_bn: "\u09A8\u09B0\u09B8\u09BF\u0982\u09A6\u09C0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "faridpur", name: "Faridpur", name_bn: "\u09AB\u09B0\u09BF\u09A6\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "manikganj", name: "Manikganj", name_bn: "\u09AE\u09BE\u09A8\u09BF\u0995\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "munshiganj", name: "Munshiganj", name_bn: "\u09AE\u09C1\u09A8\u09CD\u09B8\u09C0\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "kishoreganj", name: "Kishoreganj", name_bn: "\u0995\u09BF\u09B6\u09CB\u09B0\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "gopalganj", name: "Gopalganj", name_bn: "\u0997\u09CB\u09AA\u09BE\u09B2\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "madaripur", name: "Madaripur", name_bn: "\u09AE\u09BE\u09A6\u09BE\u09B0\u09C0\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "rajbari", name: "Rajbari", name_bn: "\u09B0\u09BE\u099C\u09AC\u09BE\u09A1\u09BC\u09C0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  { id: "shariatpur", name: "Shariatpur", name_bn: "\u09B6\u09B0\u09C0\u09AF\u09BC\u09A4\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
+  // --- Chattogram Division (11 districts) ---
+  { id: "chattogram", name: "Chattogram", name_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Chittagong"] },
+  { id: "coxs-bazar", name: "Cox's Bazar", name_bn: "\u0995\u0995\u09CD\u09B8\u09AC\u09BE\u099C\u09BE\u09B0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Coxs Bazar", "Coxsbazar"] },
+  { id: "cumilla", name: "Cumilla", name_bn: "\u0995\u09C1\u09AE\u09BF\u09B2\u09CD\u09B2\u09BE", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Comilla"] },
+  { id: "brahmanbaria", name: "Brahmanbaria", name_bn: "\u09AC\u09CD\u09B0\u09BE\u09B9\u09CD\u09AE\u09A3\u09AC\u09BE\u09A1\u09BC\u09BF\u09AF\u09BC\u09BE", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
+  { id: "chandpur", name: "Chandpur", name_bn: "\u099A\u09BE\u0981\u09A6\u09AA\u09C1\u09B0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
+  { id: "feni", name: "Feni", name_bn: "\u09AB\u09C7\u09A8\u09C0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
+  { id: "noakhali", name: "Noakhali", name_bn: "\u09A8\u09CB\u09AF\u09BC\u09BE\u0996\u09BE\u09B2\u09C0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
+  { id: "lakshmipur", name: "Lakshmipur", name_bn: "\u09B2\u0995\u09CD\u09B7\u09CD\u09AE\u09C0\u09AA\u09C1\u09B0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Laxmipur"] },
+  { id: "khagrachhari", name: "Khagrachhari", name_bn: "\u0996\u09BE\u0997\u09A1\u09BC\u09BE\u099B\u09A1\u09BC\u09BF", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Khagrachari"] },
+  { id: "rangamati", name: "Rangamati", name_bn: "\u09B0\u09BE\u0999\u09CD\u0997\u09BE\u09AE\u09BE\u099F\u09BF", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
+  { id: "bandarban", name: "Bandarban", name_bn: "\u09AC\u09BE\u09A8\u09CD\u09A6\u09B0\u09AC\u09BE\u09A8", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
+  // --- Rajshahi Division (8 districts) ---
+  { id: "rajshahi", name: "Rajshahi", name_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
+  { id: "bogura", name: "Bogura", name_bn: "\u09AC\u0997\u09C1\u09A1\u09BC\u09BE", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0", aliases: ["Bogra"] },
+  { id: "pabna", name: "Pabna", name_bn: "\u09AA\u09BE\u09AC\u09A8\u09BE", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
+  { id: "sirajganj", name: "Sirajganj", name_bn: "\u09B8\u09BF\u09B0\u09BE\u099C\u0997\u099E\u09CD\u099C", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
+  { id: "naogaon", name: "Naogaon", name_bn: "\u09A8\u0993\u0997\u09BE\u0981", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
+  { id: "natore", name: "Natore", name_bn: "\u09A8\u09BE\u099F\u09CB\u09B0", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
+  { id: "chapainawabganj", name: "Chapainawabganj", name_bn: "\u099A\u09BE\u0981\u09AA\u09BE\u0987\u09A8\u09AC\u09BE\u09AC\u0997\u099E\u09CD\u099C", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0", aliases: ["Nawabganj"] },
+  { id: "joypurhat", name: "Joypurhat", name_bn: "\u099C\u09AF\u09BC\u09AA\u09C1\u09B0\u09B9\u09BE\u099F", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
+  // --- Khulna Division (10 districts) ---
+  { id: "khulna", name: "Khulna", name_bn: "\u0996\u09C1\u09B2\u09A8\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "jashore", name: "Jashore", name_bn: "\u09AF\u09B6\u09CB\u09B0", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE", aliases: ["Jessore"] },
+  { id: "kushtia", name: "Kushtia", name_bn: "\u0995\u09C1\u09B7\u09CD\u099F\u09BF\u09AF\u09BC\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "jhenaidah", name: "Jhenaidah", name_bn: "\u099D\u09BF\u09A8\u09BE\u0987\u09A6\u09B9", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "satkhira", name: "Satkhira", name_bn: "\u09B8\u09BE\u09A4\u0995\u09CD\u09B7\u09C0\u09B0\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "bagerhat", name: "Bagerhat", name_bn: "\u09AC\u09BE\u0997\u09C7\u09B0\u09B9\u09BE\u099F", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "chuadanga", name: "Chuadanga", name_bn: "\u099A\u09C1\u09AF\u09BC\u09BE\u09A1\u09BE\u0999\u09CD\u0997\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "magura", name: "Magura", name_bn: "\u09AE\u09BE\u0997\u09C1\u09B0\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "meherpur", name: "Meherpur", name_bn: "\u09AE\u09C7\u09B9\u09C7\u09B0\u09AA\u09C1\u09B0", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  { id: "narail", name: "Narail", name_bn: "\u09A8\u09A1\u09BC\u09BE\u0987\u09B2", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
+  // --- Barishal Division (6 districts) ---
+  { id: "barishal", name: "Barishal", name_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2", aliases: ["Barisal"] },
+  { id: "patuakhali", name: "Patuakhali", name_bn: "\u09AA\u099F\u09C1\u09AF\u09BC\u09BE\u0996\u09BE\u09B2\u09C0", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
+  { id: "bhola", name: "Bhola", name_bn: "\u09AD\u09CB\u09B2\u09BE", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
+  { id: "pirojpur", name: "Pirojpur", name_bn: "\u09AA\u09BF\u09B0\u09CB\u099C\u09AA\u09C1\u09B0", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
+  { id: "barguna", name: "Barguna", name_bn: "\u09AC\u09B0\u0997\u09C1\u09A8\u09BE", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
+  { id: "jhalokathi", name: "Jhalokathi", name_bn: "\u099D\u09BE\u09B2\u0995\u09BE\u09A0\u09BF", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2", aliases: ["Jhalakati"] },
+  // --- Sylhet Division (4 districts) ---
+  { id: "sylhet", name: "Sylhet", name_bn: "\u09B8\u09BF\u09B2\u09C7\u099F", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F" },
+  { id: "moulvibazar", name: "Moulvibazar", name_bn: "\u09AE\u09CC\u09B2\u09AD\u09C0\u09AC\u09BE\u099C\u09BE\u09B0", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F", aliases: ["Maulvibazar"] },
+  { id: "habiganj", name: "Habiganj", name_bn: "\u09B9\u09AC\u09BF\u0997\u099E\u09CD\u099C", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F" },
+  { id: "sunamganj", name: "Sunamganj", name_bn: "\u09B8\u09C1\u09A8\u09BE\u09AE\u0997\u099E\u09CD\u099C", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F" },
+  // --- Rangpur Division (8 districts) ---
+  { id: "rangpur", name: "Rangpur", name_bn: "\u09B0\u0982\u09AA\u09C1\u09B0", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  { id: "dinajpur", name: "Dinajpur", name_bn: "\u09A6\u09BF\u09A8\u09BE\u099C\u09AA\u09C1\u09B0", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  { id: "kurigram", name: "Kurigram", name_bn: "\u0995\u09C1\u09A1\u09BC\u09BF\u0997\u09CD\u09B0\u09BE\u09AE", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  { id: "gaibandha", name: "Gaibandha", name_bn: "\u0997\u09BE\u0987\u09AC\u09BE\u09A8\u09CD\u09A7\u09BE", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  { id: "nilphamari", name: "Nilphamari", name_bn: "\u09A8\u09C0\u09B2\u09AB\u09BE\u09AE\u09BE\u09B0\u09C0", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  { id: "lalmonirhat", name: "Lalmonirhat", name_bn: "\u09B2\u09BE\u09B2\u09AE\u09A8\u09BF\u09B0\u09B9\u09BE\u099F", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  { id: "panchagarh", name: "Panchagarh", name_bn: "\u09AA\u099E\u09CD\u099A\u0997\u09A1\u09BC", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  { id: "thakurgaon", name: "Thakurgaon", name_bn: "\u09A0\u09BE\u0995\u09C1\u09B0\u0997\u09BE\u0981\u0993", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
+  // --- Mymensingh Division (4 districts) ---
+  { id: "mymensingh", name: "Mymensingh", name_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" },
+  { id: "jamalpur", name: "Jamalpur", name_bn: "\u099C\u09BE\u09AE\u09BE\u09B2\u09AA\u09C1\u09B0", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" },
+  { id: "netrokona", name: "Netrokona", name_bn: "\u09A8\u09C7\u09A4\u09CD\u09B0\u0995\u09CB\u09A8\u09BE", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" },
+  { id: "sherpur", name: "Sherpur", name_bn: "\u09B6\u09C7\u09B0\u09AA\u09C1\u09B0", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" }
+];
+function findDistrict(term) {
+  if (!term) return void 0;
+  const clean = term.trim().toLowerCase();
+  return BANGLADESH_DISTRICTS.find(
+    (d) => d.id === clean || d.name.toLowerCase() === clean || d.name_bn === term.trim() || d.aliases && d.aliases.some((a) => a.toLowerCase() === clean)
+  );
+}
+function getDistrictSearchTerms(term) {
+  const district = findDistrict(term);
+  if (!district) return [term.trim()];
+  const terms = [district.name, district.name_bn, ...district.aliases || []];
+  return Array.from(new Set(terms));
+}
+
+// server/sqliteAdapter.ts
 var sqliteDb = null;
 function getSqliteDb() {
   if (!sqliteDb) {
@@ -274,11 +365,49 @@ function initSqliteSchema(db) {
       image_url TEXT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS districts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      name_bn TEXT NOT NULL,
+      division TEXT NOT NULL,
+      division_bn TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
   `);
   ensureSqliteColumns(db);
   seedSqliteDatabase(db);
 }
 function ensureSqliteColumns(db) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS districts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_bn TEXT NOT NULL,
+        division TEXT NOT NULL,
+        division_bn TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+    const distCount = db.prepare("SELECT COUNT(*) as c FROM districts").get()?.c || 0;
+    if (distCount < BANGLADESH_DISTRICTS.length) {
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO districts (id, name, name_bn, division, division_bn, is_active, sort_order)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
+      `);
+      BANGLADESH_DISTRICTS.forEach((d, idx) => {
+        stmt.run(d.id, d.name, d.name_bn, d.division, d.division_bn, idx + 1);
+      });
+    }
+  } catch {
+  }
   const addColumnIfMissing = (table, column, definition) => {
     try {
       const cols = db.prepare(`PRAGMA table_info(${table})`).all();
@@ -1997,6 +2126,65 @@ router2.delete("/compounders/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router2.get("/districts", async (req, res) => {
+  try {
+    const [districts] = await db_default.query(`
+      SELECT d.*,
+        (SELECT COUNT(DISTINCT c.id) FROM chambers c 
+         WHERE c.city LIKE CONCAT('%', d.name, '%') OR c.city LIKE CONCAT('%', d.name_bn, '%')) as chamber_count
+      FROM districts d
+      ORDER BY d.division ASC, d.sort_order ASC
+    `);
+    res.json({ districts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router2.post("/districts/toggle", async (req, res) => {
+  try {
+    const adminUser = req.user;
+    const { id, is_active } = req.body;
+    if (!id) return res.status(400).json({ error: "District ID is required." });
+    const newStatus = is_active ? 1 : 0;
+    await db_default.execute("UPDATE districts SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [newStatus, id]);
+    await logActivity(adminUser.id, "UPDATE_DISTRICT_STATUS", `Set district ${id} is_active to ${newStatus}`);
+    res.json({ success: true, id, is_active: newStatus === 1 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router2.post("/districts/batch", async (req, res) => {
+  try {
+    const adminUser = req.user;
+    const { action, division, active_ids } = req.body;
+    if (action === "select_all") {
+      await db_default.execute("UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP");
+    } else if (action === "deselect_all") {
+      await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP");
+    } else if (action === "select_division" && division) {
+      await db_default.execute("UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE division = ?", [division]);
+    } else if (action === "deselect_division" && division) {
+      await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE division = ?", [division]);
+    } else if (Array.isArray(active_ids)) {
+      await db_default.execute("UPDATE districts SET is_active = 0, updated_at = CURRENT_TIMESTAMP");
+      if (active_ids.length > 0) {
+        const placeholders = active_ids.map(() => "?").join(",");
+        await db_default.execute(`UPDATE districts SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, active_ids);
+      }
+    }
+    const [updated] = await db_default.query(`
+      SELECT d.*,
+        (SELECT COUNT(DISTINCT c.id) FROM chambers c 
+         WHERE c.city LIKE CONCAT('%', d.name, '%') OR c.city LIKE CONCAT('%', d.name_bn, '%')) as chamber_count
+      FROM districts d
+      ORDER BY d.division ASC, d.sort_order ASC
+    `);
+    await logActivity(adminUser.id, "BATCH_UPDATE_DISTRICTS", `Batch updated districts (${action || "custom"})`);
+    res.json({ success: true, districts: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 var adminRoutes_default = router2;
 
 // server/routes/doctorRoutes.ts
@@ -2004,97 +2192,6 @@ var import_express4 = require("express");
 
 // server/routes/publicRoutes.ts
 var import_express3 = require("express");
-
-// server/districts.ts
-var BANGLADESH_DISTRICTS = [
-  // --- Dhaka Division (13 districts) ---
-  { id: "dhaka", name: "Dhaka", name_bn: "\u09A2\u09BE\u0995\u09BE", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "gazipur", name: "Gazipur", name_bn: "\u0997\u09BE\u099C\u09C0\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "narayanganj", name: "Narayanganj", name_bn: "\u09A8\u09BE\u09B0\u09BE\u09AF\u09BC\u09A3\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "tangail", name: "Tangail", name_bn: "\u099F\u09BE\u0999\u09CD\u0997\u09BE\u0987\u09B2", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "narsingdi", name: "Narsingdi", name_bn: "\u09A8\u09B0\u09B8\u09BF\u0982\u09A6\u09C0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "faridpur", name: "Faridpur", name_bn: "\u09AB\u09B0\u09BF\u09A6\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "manikganj", name: "Manikganj", name_bn: "\u09AE\u09BE\u09A8\u09BF\u0995\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "munshiganj", name: "Munshiganj", name_bn: "\u09AE\u09C1\u09A8\u09CD\u09B8\u09C0\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "kishoreganj", name: "Kishoreganj", name_bn: "\u0995\u09BF\u09B6\u09CB\u09B0\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "gopalganj", name: "Gopalganj", name_bn: "\u0997\u09CB\u09AA\u09BE\u09B2\u0997\u099E\u09CD\u099C", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "madaripur", name: "Madaripur", name_bn: "\u09AE\u09BE\u09A6\u09BE\u09B0\u09C0\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "rajbari", name: "Rajbari", name_bn: "\u09B0\u09BE\u099C\u09AC\u09BE\u09A1\u09BC\u09C0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  { id: "shariatpur", name: "Shariatpur", name_bn: "\u09B6\u09B0\u09C0\u09AF\u09BC\u09A4\u09AA\u09C1\u09B0", division: "Dhaka", division_bn: "\u09A2\u09BE\u0995\u09BE" },
-  // --- Chattogram Division (11 districts) ---
-  { id: "chattogram", name: "Chattogram", name_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Chittagong"] },
-  { id: "coxs-bazar", name: "Cox's Bazar", name_bn: "\u0995\u0995\u09CD\u09B8\u09AC\u09BE\u099C\u09BE\u09B0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Coxs Bazar", "Coxsbazar"] },
-  { id: "cumilla", name: "Cumilla", name_bn: "\u0995\u09C1\u09AE\u09BF\u09B2\u09CD\u09B2\u09BE", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Comilla"] },
-  { id: "brahmanbaria", name: "Brahmanbaria", name_bn: "\u09AC\u09CD\u09B0\u09BE\u09B9\u09CD\u09AE\u09A3\u09AC\u09BE\u09A1\u09BC\u09BF\u09AF\u09BC\u09BE", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
-  { id: "chandpur", name: "Chandpur", name_bn: "\u099A\u09BE\u0981\u09A6\u09AA\u09C1\u09B0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
-  { id: "feni", name: "Feni", name_bn: "\u09AB\u09C7\u09A8\u09C0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
-  { id: "noakhali", name: "Noakhali", name_bn: "\u09A8\u09CB\u09AF\u09BC\u09BE\u0996\u09BE\u09B2\u09C0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
-  { id: "lakshmipur", name: "Lakshmipur", name_bn: "\u09B2\u0995\u09CD\u09B7\u09CD\u09AE\u09C0\u09AA\u09C1\u09B0", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Laxmipur"] },
-  { id: "khagrachhari", name: "Khagrachhari", name_bn: "\u0996\u09BE\u0997\u09A1\u09BC\u09BE\u099B\u09A1\u09BC\u09BF", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE", aliases: ["Khagrachari"] },
-  { id: "rangamati", name: "Rangamati", name_bn: "\u09B0\u09BE\u0999\u09CD\u0997\u09BE\u09AE\u09BE\u099F\u09BF", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
-  { id: "bandarban", name: "Bandarban", name_bn: "\u09AC\u09BE\u09A8\u09CD\u09A6\u09B0\u09AC\u09BE\u09A8", division: "Chattogram", division_bn: "\u099A\u099F\u09CD\u099F\u0997\u09CD\u09B0\u09BE\u09AE" },
-  // --- Rajshahi Division (8 districts) ---
-  { id: "rajshahi", name: "Rajshahi", name_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
-  { id: "bogura", name: "Bogura", name_bn: "\u09AC\u0997\u09C1\u09A1\u09BC\u09BE", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0", aliases: ["Bogra"] },
-  { id: "pabna", name: "Pabna", name_bn: "\u09AA\u09BE\u09AC\u09A8\u09BE", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
-  { id: "sirajganj", name: "Sirajganj", name_bn: "\u09B8\u09BF\u09B0\u09BE\u099C\u0997\u099E\u09CD\u099C", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
-  { id: "naogaon", name: "Naogaon", name_bn: "\u09A8\u0993\u0997\u09BE\u0981", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
-  { id: "natore", name: "Natore", name_bn: "\u09A8\u09BE\u099F\u09CB\u09B0", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
-  { id: "chapainawabganj", name: "Chapainawabganj", name_bn: "\u099A\u09BE\u0981\u09AA\u09BE\u0987\u09A8\u09AC\u09BE\u09AC\u0997\u099E\u09CD\u099C", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0", aliases: ["Nawabganj"] },
-  { id: "joypurhat", name: "Joypurhat", name_bn: "\u099C\u09AF\u09BC\u09AA\u09C1\u09B0\u09B9\u09BE\u099F", division: "Rajshahi", division_bn: "\u09B0\u09BE\u099C\u09B6\u09BE\u09B9\u09C0" },
-  // --- Khulna Division (10 districts) ---
-  { id: "khulna", name: "Khulna", name_bn: "\u0996\u09C1\u09B2\u09A8\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "jashore", name: "Jashore", name_bn: "\u09AF\u09B6\u09CB\u09B0", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE", aliases: ["Jessore"] },
-  { id: "kushtia", name: "Kushtia", name_bn: "\u0995\u09C1\u09B7\u09CD\u099F\u09BF\u09AF\u09BC\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "jhenaidah", name: "Jhenaidah", name_bn: "\u099D\u09BF\u09A8\u09BE\u0987\u09A6\u09B9", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "satkhira", name: "Satkhira", name_bn: "\u09B8\u09BE\u09A4\u0995\u09CD\u09B7\u09C0\u09B0\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "bagerhat", name: "Bagerhat", name_bn: "\u09AC\u09BE\u0997\u09C7\u09B0\u09B9\u09BE\u099F", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "chuadanga", name: "Chuadanga", name_bn: "\u099A\u09C1\u09AF\u09BC\u09BE\u09A1\u09BE\u0999\u09CD\u0997\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "magura", name: "Magura", name_bn: "\u09AE\u09BE\u0997\u09C1\u09B0\u09BE", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "meherpur", name: "Meherpur", name_bn: "\u09AE\u09C7\u09B9\u09C7\u09B0\u09AA\u09C1\u09B0", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  { id: "narail", name: "Narail", name_bn: "\u09A8\u09A1\u09BC\u09BE\u0987\u09B2", division: "Khulna", division_bn: "\u0996\u09C1\u09B2\u09A8\u09BE" },
-  // --- Barishal Division (6 districts) ---
-  { id: "barishal", name: "Barishal", name_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2", aliases: ["Barisal"] },
-  { id: "patuakhali", name: "Patuakhali", name_bn: "\u09AA\u099F\u09C1\u09AF\u09BC\u09BE\u0996\u09BE\u09B2\u09C0", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
-  { id: "bhola", name: "Bhola", name_bn: "\u09AD\u09CB\u09B2\u09BE", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
-  { id: "pirojpur", name: "Pirojpur", name_bn: "\u09AA\u09BF\u09B0\u09CB\u099C\u09AA\u09C1\u09B0", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
-  { id: "barguna", name: "Barguna", name_bn: "\u09AC\u09B0\u0997\u09C1\u09A8\u09BE", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2" },
-  { id: "jhalokathi", name: "Jhalokathi", name_bn: "\u099D\u09BE\u09B2\u0995\u09BE\u09A0\u09BF", division: "Barishal", division_bn: "\u09AC\u09B0\u09BF\u09B6\u09BE\u09B2", aliases: ["Jhalakati"] },
-  // --- Sylhet Division (4 districts) ---
-  { id: "sylhet", name: "Sylhet", name_bn: "\u09B8\u09BF\u09B2\u09C7\u099F", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F" },
-  { id: "moulvibazar", name: "Moulvibazar", name_bn: "\u09AE\u09CC\u09B2\u09AD\u09C0\u09AC\u09BE\u099C\u09BE\u09B0", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F", aliases: ["Maulvibazar"] },
-  { id: "habiganj", name: "Habiganj", name_bn: "\u09B9\u09AC\u09BF\u0997\u099E\u09CD\u099C", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F" },
-  { id: "sunamganj", name: "Sunamganj", name_bn: "\u09B8\u09C1\u09A8\u09BE\u09AE\u0997\u099E\u09CD\u099C", division: "Sylhet", division_bn: "\u09B8\u09BF\u09B2\u09C7\u099F" },
-  // --- Rangpur Division (8 districts) ---
-  { id: "rangpur", name: "Rangpur", name_bn: "\u09B0\u0982\u09AA\u09C1\u09B0", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  { id: "dinajpur", name: "Dinajpur", name_bn: "\u09A6\u09BF\u09A8\u09BE\u099C\u09AA\u09C1\u09B0", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  { id: "kurigram", name: "Kurigram", name_bn: "\u0995\u09C1\u09A1\u09BC\u09BF\u0997\u09CD\u09B0\u09BE\u09AE", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  { id: "gaibandha", name: "Gaibandha", name_bn: "\u0997\u09BE\u0987\u09AC\u09BE\u09A8\u09CD\u09A7\u09BE", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  { id: "nilphamari", name: "Nilphamari", name_bn: "\u09A8\u09C0\u09B2\u09AB\u09BE\u09AE\u09BE\u09B0\u09C0", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  { id: "lalmonirhat", name: "Lalmonirhat", name_bn: "\u09B2\u09BE\u09B2\u09AE\u09A8\u09BF\u09B0\u09B9\u09BE\u099F", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  { id: "panchagarh", name: "Panchagarh", name_bn: "\u09AA\u099E\u09CD\u099A\u0997\u09A1\u09BC", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  { id: "thakurgaon", name: "Thakurgaon", name_bn: "\u09A0\u09BE\u0995\u09C1\u09B0\u0997\u09BE\u0981\u0993", division: "Rangpur", division_bn: "\u09B0\u0982\u09AA\u09C1\u09B0" },
-  // --- Mymensingh Division (4 districts) ---
-  { id: "mymensingh", name: "Mymensingh", name_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" },
-  { id: "jamalpur", name: "Jamalpur", name_bn: "\u099C\u09BE\u09AE\u09BE\u09B2\u09AA\u09C1\u09B0", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" },
-  { id: "netrokona", name: "Netrokona", name_bn: "\u09A8\u09C7\u09A4\u09CD\u09B0\u0995\u09CB\u09A8\u09BE", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" },
-  { id: "sherpur", name: "Sherpur", name_bn: "\u09B6\u09C7\u09B0\u09AA\u09C1\u09B0", division: "Mymensingh", division_bn: "\u09AE\u09AF\u09BC\u09AE\u09A8\u09B8\u09BF\u0982\u09B9" }
-];
-function findDistrict(term) {
-  if (!term) return void 0;
-  const clean = term.trim().toLowerCase();
-  return BANGLADESH_DISTRICTS.find(
-    (d) => d.id === clean || d.name.toLowerCase() === clean || d.name_bn === term.trim() || d.aliases && d.aliases.some((a) => a.toLowerCase() === clean)
-  );
-}
-function getDistrictSearchTerms(term) {
-  const district = findDistrict(term);
-  if (!district) return [term.trim()];
-  const terms = [district.name, district.name_bn, ...district.aliases || []];
-  return Array.from(new Set(terms));
-}
-
-// server/routes/publicRoutes.ts
 var router3 = (0, import_express3.Router)();
 function generateDoctorSlug(title = "Dr.", name = "", id) {
   const cleanTitle = (title || "Dr").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
@@ -2121,8 +2218,16 @@ router3.get("/specialties", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router3.get("/districts", (req, res) => {
-  res.json({ districts: BANGLADESH_DISTRICTS });
+router3.get("/districts", async (req, res) => {
+  try {
+    const { all } = req.query;
+    const query = all === "1" ? "SELECT * FROM districts ORDER BY division ASC, sort_order ASC" : "SELECT * FROM districts WHERE is_active = 1 ORDER BY division ASC, sort_order ASC";
+    const [rows] = await db_default.query(query);
+    const districts = rows && rows.length > 0 ? rows : BANGLADESH_DISTRICTS;
+    res.json({ districts });
+  } catch (err) {
+    res.json({ districts: BANGLADESH_DISTRICTS });
+  }
 });
 router3.get("/doctors", async (req, res) => {
   try {

@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
+import { BANGLADESH_DISTRICTS } from './districts.js';
 
 let sqliteDb: DatabaseSync | null = null;
 
@@ -248,6 +249,18 @@ function initSqliteSchema(db: DatabaseSync) {
       image_url TEXT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS districts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      name_bn TEXT NOT NULL,
+      division TEXT NOT NULL,
+      division_bn TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   // Seed default data if database is empty
@@ -260,6 +273,34 @@ function initSqliteSchema(db: DatabaseSync) {
  * so upgrades do not require deleting the local database.
  */
 function ensureSqliteColumns(db: DatabaseSync) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS districts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_bn TEXT NOT NULL,
+        division TEXT NOT NULL,
+        division_bn TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+
+    const distCount = (db.prepare('SELECT COUNT(*) as c FROM districts').get() as { c: number })?.c || 0;
+    if (distCount < BANGLADESH_DISTRICTS.length) {
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO districts (id, name, name_bn, division, division_bn, is_active, sort_order)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
+      `);
+      BANGLADESH_DISTRICTS.forEach((d, idx) => {
+        stmt.run(d.id, d.name, d.name_bn, d.division, d.division_bn, idx + 1);
+      });
+    }
+  } catch {
+    // ignore
+  }
   const addColumnIfMissing = (table: string, column: string, definition: string) => {
     try {
       const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
