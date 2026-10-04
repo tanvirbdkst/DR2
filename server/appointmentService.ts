@@ -1,5 +1,6 @@
 import pool from './db.js';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { sendHospitalWebhook } from './services/hospitalIntegrationService.js';
 
 export type BookingSource = 'online' | 'compounder' | 'admin' | 'walk_in';
 export type PaymentStatus = 'unpaid' | 'paid' | 'exempt';
@@ -134,14 +135,53 @@ export async function bookAppointment(params: BookAppointmentParams): Promise<Bo
     throw new BookingError('DOCTOR_NOT_FOUND', 'Doctor not found or not approved for booking.');
   }
 
-  // 2. Validate Chamber
-  const [chamRows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM chambers WHERE id = ? AND doctor_id = ?',
-    [chamIdNum, docIdNum]
-  );
-  const chamber = chamRows[0] as any;
+  // 2. Validate Chamber & Hospital Quota
+  let chamber: any = null;
+  let linkedHospitalId: number | null = null;
+  let allocatedOnlineQuota: number | null = null;
+  let hospitalCode: string | null = null;
+  let hospitalName: string | null = null;
+
+  try {
+    const [chamRows] = await pool.query<RowDataPacket[]>(`
+      SELECT c.*,
+        COALESCE(hd.hospital_id, c.hospital_id) as linked_hospital_id,
+        COALESCE(hd.online_quota, h.online_quota) as allocated_online_quota,
+        h.hospital_code,
+        h.name as hospital_name
+      FROM chambers c
+      LEFT JOIN hospital_doctors hd ON hd.chamber_id = c.id AND hd.doctor_id = c.doctor_id
+      LEFT JOIN hospitals h ON h.id = COALESCE(hd.hospital_id, c.hospital_id)
+      WHERE c.id = ? AND c.doctor_id = ?
+    `, [chamIdNum, docIdNum]);
+
+    chamber = chamRows[0] as any;
+    if (chamber) {
+      linkedHospitalId = chamber.linked_hospital_id ? Number(chamber.linked_hospital_id) : null;
+      allocatedOnlineQuota = chamber.allocated_online_quota ? Number(chamber.allocated_online_quota) : null;
+      hospitalCode = chamber.hospital_code || null;
+      hospitalName = chamber.hospital_name || null;
+    }
+  } catch {
+    const [chamRows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM chambers WHERE id = ? AND doctor_id = ?',
+      [chamIdNum, docIdNum]
+    );
+    chamber = chamRows[0] as any;
+  }
+
   if (!chamber) {
     throw new BookingError('INVALID_CHAMBER', 'Invalid chamber for this doctor.');
+  }
+
+  // 2b. If linked to an integrated hospital, enforce the online serial quota for public bookings
+  if (linkedHospitalId && allocatedOnlineQuota && bookingSource === 'online') {
+    if (serialNum > allocatedOnlineQuota) {
+      throw new BookingError(
+        'QUOTA_EXCEEDED',
+        `Serial #${serialNum} exceeds the online quota (${allocatedOnlineQuota} serials) allocated to Daktar Serial at ${hospitalName || 'this hospital'}. Please select a serial from 1 to ${allocatedOnlineQuota}.`
+      );
+    }
   }
 
   // 3. Validate Day of Week and Schedule
@@ -241,6 +281,26 @@ export async function bookAppointment(params: BookAppointmentParams): Promise<Bo
 
     recordId = insertResult.insertId;
     await conn.commit();
+
+    // 5. Outgoing Webhook Synchronization to Hospital (if integrated and not external loopback)
+    if (linkedHospitalId && bookingSource !== 'walk_in') {
+      sendHospitalWebhook(linkedHospitalId, 'appointment.booked', {
+        event: 'appointment.booked',
+        hospital_id: hospitalCode,
+        doctor_id: docIdNum,
+        chamber_id: chamIdNum,
+        schedule_id: schedule.id,
+        serial_id: `SER-${scheduleDate.replace(/-/g, '')}-${String(serialNum).padStart(4, '0')}`,
+        serial_number: serialNum,
+        appointment_date: scheduleDate,
+        patient_name: patientName,
+        patient_phone: patientPhone,
+        status: 'BOOKED',
+        appointment_id: appointmentId,
+      }).catch((webhookErr) => {
+        console.warn('[HospitalWebhook] Background dispatch notice:', webhookErr.message);
+      });
+    }
   } catch (txErr: any) {
     await conn.rollback();
     if (txErr instanceof BookingError) throw txErr;

@@ -3,12 +3,14 @@ import {
   ShieldCheck, Users, Stethoscope, CalendarCheck, CheckCircle2,
   XCircle, AlertCircle, Plus, Search, Filter, ShieldAlert, Sparkles,
   RefreshCw, LogOut, ArrowRight, Lock, Mail, KeyRound, Eye, EyeOff,
-  Clock, Check, Phone, MapPin, FileText, Save, CheckSquare, Square, RotateCcw
+  Clock, Check, Phone, MapPin, FileText, Save, CheckSquare, Square, RotateCcw,
+  Building2, Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { getAuthToken } from '../config/api.js';
 import { DoctorProfile, Specialty } from '../types.js';
 import { District, BANGLADESH_DISTRICTS } from '../data/districts.js';
+import { HospitalIntegrationPanel } from '../components/HospitalIntegrationPanel.js';
 
 interface AdminDashboardPageProps {
   onNavigate?: (view: string) => void;
@@ -25,7 +27,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Dashboard Data State
-  const [activeTab, setActiveTab] = useState<'pending' | 'doctors' | 'appointments' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'logs'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'doctors' | 'appointments' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'hospitals' | 'logs'>('pending');
   const [stats, setStats] = useState({
     totalDoctors: 0,
     pendingDoctors: 0,
@@ -34,6 +36,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     totalAppointments: 0,
     todayAppointments: 0,
     totalCompounders: 0,
+    totalHospitals: 0,
   });
 
   const [pendingDoctors, setPendingDoctors] = useState<DoctorProfile[]>([]);
@@ -100,7 +103,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       if (token) authHeaders['Authorization'] = `Bearer ${token}`;
       const opts: RequestInit = { headers: authHeaders, credentials: 'include' };
 
-      const [statsRes, pendingRes, docsRes, patientsRes, specRes, apptsRes, compRes, availDocsRes, distRes] = await Promise.all([
+      const [statsRes, pendingRes, docsRes, patientsRes, specRes, apptsRes, compRes, availDocsRes, distRes, hospRes] = await Promise.all([
         fetch('/api/admin/stats', opts),
         fetch('/api/admin/doctors/pending', opts),
         fetch('/api/admin/doctors', opts),
@@ -110,12 +113,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         fetch('/api/admin/compounders', opts).catch(() => null),
         fetch('/api/admin/compounders/available-doctors', opts).catch(() => null),
         fetch('/api/admin/districts', opts).catch(() => null),
+        fetch('/api/admin/hospitals', opts).catch(() => null),
       ]);
 
       if (statsRes.ok) {
         const sData = await statsRes.json();
         const statObj = sData.stats || sData;
-        setStats({
+        setStats((prev) => ({
+          ...prev,
           totalDoctors: Number(statObj.totalDoctors) || 0,
           pendingDoctors: Number(statObj.pendingDoctors) || 0,
           approvedDoctors: Number(statObj.approvedDoctors) || 0,
@@ -123,10 +128,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           totalAppointments: Number(statObj.totalAppointments) || 0,
           todayAppointments: Number(statObj.todayAppointments) || 0,
           totalCompounders: Number(statObj.totalCompounders) || 0,
-        });
+        }));
         if (sData.recentLogs) {
           setActivityLogs(sData.recentLogs);
         }
+      }
+
+      if (hospRes && hospRes.ok) {
+        const hData = await hospRes.json();
+        setStats((prev) => ({ ...prev, totalHospitals: hData.hospitals?.length || 0 }));
       }
 
       if (pendingRes.ok) {
@@ -1035,6 +1045,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           </div>
           <p className="text-[10px] text-slate-500 mt-1">{t('Active in search', 'সার্চে সক্রিয় জেলা')}</p>
         </div>
+
+        <div
+          onClick={() => setActiveTab('hospitals')}
+          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
+            activeTab === 'hospitals' ? 'border-indigo-600 ring-2 ring-indigo-600/20' : 'border-slate-200 hover:border-indigo-300'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Hospitals</span>
+            <Building2 className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalHospitals || 0}</div>
+          <p className="text-[10px] text-slate-500 mt-1">Integrated Partners</p>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -1074,6 +1098,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             }`}
           >
             Serials & Appointments ({appointments.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('hospitals')}
+            className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'hospitals'
+                ? 'border-indigo-600 text-indigo-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Hospital Integration</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold">
+              API
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('patients')}
@@ -2115,6 +2153,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             )}
           </div>
         </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: HOSPITAL INTEGRATION & COLLABORATION */}
+      {/* ========================================================= */}
+      {activeTab === 'hospitals' && (
+        <HospitalIntegrationPanel onRefreshStats={loadAdminData} />
       )}
 
       {/* ========================================================= */}

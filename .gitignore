@@ -16,5 +16,3 @@ tmp/
 uploads/
 
 package.json.backup
-tore --staged daktar_serial.sqlite daktar_serial.sqlite-shm daktar_serial.sqlite-wal
-node_modules

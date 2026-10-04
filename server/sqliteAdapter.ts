@@ -316,6 +316,95 @@ function ensureSqliteColumns(db: DatabaseSync) {
   addColumnIfMissing('users', 'last_login_at', 'TEXT NULL');
   addColumnIfMissing('appointments', 'booking_source', "TEXT NOT NULL DEFAULT 'online'");
   addColumnIfMissing('appointments', 'created_by', 'INTEGER NULL');
+  addColumnIfMissing('appointments', 'hospital_id', 'INTEGER NULL');
+  addColumnIfMissing('appointments', 'external_booking_id', 'TEXT NULL');
+  addColumnIfMissing('chambers', 'hospital_id', 'INTEGER NULL');
+
+  // Hospitals table columns
+  addColumnIfMissing('hospitals', 'hospital_code', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'contact_person', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'email', "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('hospitals', 'website_url', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'status', "TEXT NOT NULL DEFAULT 'active'");
+  addColumnIfMissing('hospitals', 'integration_status', "TEXT NOT NULL DEFAULT 'pending'");
+  addColumnIfMissing('hospitals', 'api_status', "TEXT NOT NULL DEFAULT 'pending'");
+  addColumnIfMissing('hospitals', 'webhook_url', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'webhook_secret', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'total_hospital_serials', 'INTEGER NOT NULL DEFAULT 100');
+  addColumnIfMissing('hospitals', 'online_quota', 'INTEGER NOT NULL DEFAULT 20');
+  addColumnIfMissing('hospitals', 'notes', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'last_sync_at', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'last_api_request_at', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'last_webhook_at', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'last_error_message', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'successful_syncs_count', 'INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing('hospitals', 'failed_syncs_count', 'INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing('hospitals', 'updated_at', 'TEXT NULL');
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS hospital_api_credentials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hospital_id INTEGER NOT NULL,
+        api_key TEXT NOT NULL UNIQUE,
+        api_secret_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        last_used_at TEXT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS hospital_doctors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hospital_id INTEGER NOT NULL,
+        doctor_id INTEGER NOT NULL,
+        chamber_id INTEGER NOT NULL,
+        total_serials INTEGER NOT NULL DEFAULT 100,
+        online_quota INTEGER NOT NULL DEFAULT 20,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(hospital_id, doctor_id, chamber_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS hospital_external_bookings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hospital_id INTEGER NOT NULL,
+        external_booking_id TEXT NOT NULL,
+        appointment_id TEXT NOT NULL,
+        idempotency_key TEXT NULL,
+        doctor_id INTEGER NOT NULL,
+        chamber_id INTEGER NOT NULL,
+        schedule_date TEXT NOT NULL,
+        serial_number INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'BOOKED',
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(hospital_id, external_booking_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS hospital_sync_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hospital_id INTEGER NOT NULL,
+        direction TEXT NOT NULL,
+        event TEXT NOT NULL,
+        doctor_id INTEGER NULL,
+        chamber_id INTEGER NULL,
+        schedule_date TEXT NULL,
+        serial_number INTEGER NULL,
+        booking_id TEXT NULL,
+        external_booking_id TEXT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        http_status INTEGER NULL,
+        request_payload TEXT NULL,
+        response_payload TEXT NULL,
+        error_message TEXT NULL,
+        idempotency_key TEXT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+  } catch {
+    // ignore
+  }
 
   try {
     db.prepare(`

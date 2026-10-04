@@ -12,6 +12,8 @@ import doctorRoutes from './server/routes/doctorRoutes.js';
 import compounderRoutes from './server/routes/compounderRoutes.js';
 import publicRoutes from './server/routes/publicRoutes.js';
 import appointmentRoutes from './server/routes/appointmentRoutes.js';
+import hospitalIntegrationRoutes from './server/routes/hospitalIntegrationRoutes.js';
+import adminHospitalRoutes from './server/routes/adminHospitalRoutes.js';
 import testRoutes from './server/routes/testRoutes.js';
 import uploadRoutes from './server/routes/uploadRoutes.js';
 import {
@@ -83,6 +85,8 @@ async function startServer() {
   // Mount API Endpoints
   app.use('/api/auth', authRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/admin/hospitals', adminHospitalRoutes);
+  app.use('/api/integration/hospital', hospitalIntegrationRoutes);
   app.use('/api/doctor', doctorRoutes);
   app.use('/api/compounder', compounderRoutes);
   app.use('/api/public', publicRoutes);

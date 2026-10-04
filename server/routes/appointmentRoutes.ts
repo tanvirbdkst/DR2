@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool, { logActivity } from '../db.js';
 import { requireAuth } from '../auth.js';
+import { sendHospitalWebhook } from '../services/hospitalIntegrationService.js';
 import { RowDataPacket } from 'mysql2/promise';
 import { bookAppointment, BookingError, DUPLICATE_BOOKING_MESSAGE_BN } from '../appointmentService.js';
 
@@ -272,6 +273,25 @@ router.patch('/cancel/:id', requireAuth, async (req, res) => {
       throw txErr;
     } finally {
       conn.release();
+    }
+
+    // If linked to a hospital, dispatch cancellation webhook
+    try {
+      const [chamRows] = await pool.query<RowDataPacket[]>('SELECT hospital_id FROM chambers WHERE id = ?', [appt.chamber_id]);
+      const hospitalId = appt.hospital_id || chamRows[0]?.hospital_id;
+      if (hospitalId) {
+        sendHospitalWebhook(hospitalId, 'appointment.cancelled', {
+          event: 'appointment.cancelled',
+          appointment_id: appt.appointment_id,
+          doctor_id: appt.doctor_id,
+          chamber_id: appt.chamber_id,
+          serial_number: appt.serial_number,
+          appointment_date: appt.schedule_date,
+          status: 'CANCELLED',
+        }).catch((e) => console.warn('[HospitalWebhook] Cancel notice:', e.message));
+      }
+    } catch (e) {
+      // ignore
     }
 
     await logActivity(user.id, 'CANCEL_APPOINTMENT', `Cancelled appointment ${appt.appointment_id}`);
