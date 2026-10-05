@@ -330,6 +330,7 @@ function ensureSqliteColumns(db: DatabaseSync) {
   addColumnIfMissing('hospitals', 'api_status', "TEXT NOT NULL DEFAULT 'pending'");
   addColumnIfMissing('hospitals', 'webhook_url', 'TEXT NULL');
   addColumnIfMissing('hospitals', 'webhook_secret', 'TEXT NULL');
+  addColumnIfMissing('hospitals', 'webhook_enabled', 'INTEGER NOT NULL DEFAULT 1');
   addColumnIfMissing('hospitals', 'total_hospital_serials', 'INTEGER NOT NULL DEFAULT 100');
   addColumnIfMissing('hospitals', 'online_quota', 'INTEGER NOT NULL DEFAULT 20');
   addColumnIfMissing('hospitals', 'notes', 'TEXT NULL');
@@ -418,6 +419,38 @@ function ensureSqliteColumns(db: DatabaseSync) {
       WHERE id = 3;
     `).run();
   } catch {
+    // ignore
+  }
+
+  try {
+    const allHosp = db.prepare('SELECT id, hospital_code FROM hospitals').all() as { id: number; hospital_code: string | null }[];
+    for (const hosp of allHosp) {
+      const code = hosp.hospital_code || `HOSP-${String(hosp.id).padStart(4, '0')}`;
+      const email = `contact@hosp-${hosp.id}.example.com`;
+      const webhookSecret = `whsec_${hosp.id}_${bcrypt.hashSync(code, 6).slice(-16).replace(/[^a-zA-Z0-9]/g, '')}`;
+
+      db.prepare(`
+        UPDATE hospitals
+        SET hospital_code = COALESCE(hospital_code, ?),
+            email = CASE WHEN email IS NULL OR email = '' THEN ? ELSE email END,
+            status = 'active',
+            api_status = 'active',
+            webhook_enabled = 1,
+            webhook_secret = COALESCE(webhook_secret, ?)
+        WHERE id = ?
+      `).run(code, email, webhookSecret, hosp.id);
+
+      const credExists = db.prepare('SELECT id FROM hospital_api_credentials WHERE hospital_id = ?').get(hosp.id);
+      if (!credExists) {
+        const apiKey = `ds_live_${code.toLowerCase().replace(/[^a-z0-9]/g, '')}_${hosp.id}a9f4c`;
+        const secretHash = bcrypt.hashSync('default_secret_' + hosp.id, 10);
+        db.prepare(`
+          INSERT INTO hospital_api_credentials (hospital_id, api_key, api_secret_hash, status)
+          VALUES (?, ?, ?, 'active')
+        `).run(hosp.id, apiKey, secretHash);
+      }
+    }
+  } catch (err) {
     // ignore
   }
 
@@ -695,6 +728,39 @@ function seedSqliteDatabase(db: DatabaseSync) {
       INSERT OR IGNORE INTO hospitals (id, name, address, city, area, phone, description)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(h.id, h.name, h.address, h.city, h.area, h.phone, h.desc);
+  }
+
+  // Ensure all seeded hospitals have codes, active status, and API credentials
+  try {
+    const allHosp = db.prepare('SELECT id, hospital_code FROM hospitals').all() as { id: number; hospital_code: string | null }[];
+    for (const hosp of allHosp) {
+      const code = hosp.hospital_code || `HOSP-${String(hosp.id).padStart(4, '0')}`;
+      const email = `contact@hosp-${hosp.id}.example.com`;
+      const webhookSecret = `whsec_${hosp.id}_${bcrypt.hashSync(code, 6).slice(-16).replace(/[^a-zA-Z0-9]/g, '')}`;
+
+      db.prepare(`
+        UPDATE hospitals
+        SET hospital_code = COALESCE(hospital_code, ?),
+            email = CASE WHEN email IS NULL OR email = '' THEN ? ELSE email END,
+            status = 'active',
+            api_status = 'active',
+            webhook_enabled = 1,
+            webhook_secret = COALESCE(webhook_secret, ?)
+        WHERE id = ?
+      `).run(code, email, webhookSecret, hosp.id);
+
+      const credExists = db.prepare('SELECT id FROM hospital_api_credentials WHERE hospital_id = ?').get({ hospital_id: hosp.id });
+      if (!credExists) {
+        const apiKey = `ds_live_${code.toLowerCase().replace(/[^a-z0-9]/g, '')}_${hosp.id}a9f4c`;
+        const secretHash = bcrypt.hashSync('default_secret_' + hosp.id, 10);
+        db.prepare(`
+          INSERT INTO hospital_api_credentials (hospital_id, api_key, api_secret_hash, status)
+          VALUES (?, ?, ?, 'active')
+        `).run(hosp.id, apiKey, secretHash);
+      }
+    }
+  } catch (err) {
+    // ignore
   }
 
   // 6. Seed System Settings

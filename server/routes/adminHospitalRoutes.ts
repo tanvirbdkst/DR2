@@ -183,6 +183,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       total_hospital_serials,
       online_quota,
       webhook_url,
+      webhook_enabled,
       notes,
     } = req.body;
 
@@ -198,6 +199,7 @@ router.put('/:id', async (req: Request, res: Response) => {
           total_hospital_serials = COALESCE(?, total_hospital_serials),
           online_quota = COALESCE(?, online_quota),
           webhook_url = COALESCE(?, webhook_url),
+          webhook_enabled = COALESCE(?, webhook_enabled),
           notes = COALESCE(?, notes),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -212,11 +214,88 @@ router.put('/:id', async (req: Request, res: Response) => {
       total_hospital_serials !== undefined ? Number(total_hospital_serials) : null,
       online_quota !== undefined ? Number(online_quota) : null,
       webhook_url !== undefined ? webhook_url : null,
+      webhook_enabled !== undefined ? (webhook_enabled ? 1 : 0) : null,
       notes !== undefined ? notes : null,
       hospitalId,
     ]);
 
     res.json({ success: true, message: 'Hospital updated successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 4.1 Update Webhook Settings Specifically
+ * PATCH /api/admin/hospitals/:id/webhook
+ */
+router.patch('/:id/webhook', async (req: Request, res: Response) => {
+  try {
+    const hospitalId = Number(req.params.id);
+    const { webhook_url, webhook_enabled } = req.body;
+
+    const fields: string[] = [];
+    const params: any[] = [];
+
+    if (webhook_url !== undefined) {
+      fields.push('webhook_url = ?');
+      params.push(webhook_url ? String(webhook_url).trim() : null);
+    }
+    if (webhook_enabled !== undefined) {
+      fields.push('webhook_enabled = ?');
+      params.push(webhook_enabled ? 1 : 0);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No webhook fields provided.' });
+    }
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(hospitalId);
+
+    await pool.execute(`UPDATE hospitals SET ${fields.join(', ')} WHERE id = ?`, params);
+
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT id, hospital_code, webhook_url, webhook_enabled, webhook_secret, last_webhook_at FROM hospitals WHERE id = ?', [hospitalId]);
+
+    res.json({ success: true, message: 'Webhook settings saved successfully.', hospital: rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 4.2 Get Sync Logs for Single Hospital
+ * GET /api/admin/hospitals/:id/sync-logs
+ */
+router.get('/:id/sync-logs', async (req: Request, res: Response) => {
+  try {
+    const hospitalId = Number(req.params.id);
+    const { limit = 50, event } = req.query;
+
+    let sql = `
+      SELECT
+        l.*,
+        h.name as hospital_name,
+        h.hospital_code,
+        u.name as doctor_name
+      FROM hospital_sync_logs l
+      JOIN hospitals h ON l.hospital_id = h.id
+      LEFT JOIN doctors d ON l.doctor_id = d.id
+      LEFT JOIN users u ON d.user_id = u.id
+      WHERE l.hospital_id = ?
+    `;
+    const params: any[] = [hospitalId];
+
+    if (event && event !== 'all') {
+      sql += ' AND l.event = ?';
+      params.push(String(event));
+    }
+
+    sql += ' ORDER BY l.id DESC LIMIT ?';
+    params.push(Number(limit) || 50);
+
+    const [rows] = await pool.query<RowDataPacket[]>(sql, params);
+    res.json({ success: true, logs: rows });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

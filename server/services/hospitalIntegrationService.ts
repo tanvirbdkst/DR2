@@ -17,6 +17,7 @@ export interface Hospital {
   api_status: 'active' | 'revoked' | 'pending';
   webhook_url: string | null;
   webhook_secret: string | null;
+  webhook_enabled: number | boolean;
   total_hospital_serials: number;
   online_quota: number;
   notes: string | null;
@@ -167,19 +168,21 @@ export async function logHospitalSync(params: {
       await pool.execute(`
         UPDATE hospitals
         SET last_sync_at = CURRENT_TIMESTAMP,
+            last_webhook_at = CASE WHEN ? = 'daktar_to_hospital' THEN CURRENT_TIMESTAMP ELSE last_webhook_at END,
             successful_syncs_count = successful_syncs_count + 1,
             integration_status = 'connected'
         WHERE id = ?
-      `, [params.hospitalId]);
+      `, [params.direction, params.hospitalId]);
     } else if (params.status === 'failed') {
       await pool.execute(`
         UPDATE hospitals
         SET last_sync_at = CURRENT_TIMESTAMP,
+            last_webhook_at = CASE WHEN ? = 'daktar_to_hospital' THEN CURRENT_TIMESTAMP ELSE last_webhook_at END,
             failed_syncs_count = failed_syncs_count + 1,
             last_error_message = ?,
             integration_status = 'error'
         WHERE id = ?
-      `, [params.errorMessage || 'Sync failed', params.hospitalId]);
+      `, [params.direction, params.errorMessage || 'Sync failed', params.hospitalId]);
     }
 
     return res.insertId;
@@ -195,12 +198,15 @@ export async function logHospitalSync(params: {
 export async function sendHospitalWebhook(hospitalId: number, event: string, payloadData: any): Promise<{ success: boolean; httpStatus?: number; error?: string }> {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, hospital_code, webhook_url, webhook_secret, status FROM hospitals WHERE id = ?',
+      'SELECT id, hospital_code, webhook_url, webhook_secret, status, COALESCE(webhook_enabled, 1) as webhook_enabled FROM hospitals WHERE id = ?',
       [hospitalId]
     );
     const hospital = rows[0] as any;
     if (!hospital || hospital.status !== 'active' || !hospital.webhook_url) {
       return { success: false, error: 'Hospital webhook is not configured or inactive.' };
+    }
+    if (hospital.webhook_enabled === 0 || hospital.webhook_enabled === false) {
+      return { success: false, error: 'Hospital webhook is currently disabled.' };
     }
 
     const timestamp = Math.floor(Date.now() / 1000);

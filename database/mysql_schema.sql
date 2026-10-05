@@ -332,6 +332,7 @@ CREATE TABLE IF NOT EXISTS hospitals (
     api_status ENUM('active', 'revoked', 'pending') NOT NULL DEFAULT 'pending',
     webhook_url VARCHAR(500) NULL,
     webhook_secret VARCHAR(255) NULL,
+    webhook_enabled TINYINT(1) NOT NULL DEFAULT 1,
     total_hospital_serials INT UNSIGNED NOT NULL DEFAULT 100,
     online_quota INT UNSIGNED NOT NULL DEFAULT 20,
     notes TEXT NULL,

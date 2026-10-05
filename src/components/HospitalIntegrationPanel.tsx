@@ -22,6 +22,7 @@ interface Hospital {
   api_status: 'active' | 'revoked' | 'pending';
   webhook_url: string | null;
   webhook_secret: string | null;
+  webhook_enabled?: number | boolean;
   total_hospital_serials: number;
   online_quota: number;
   notes: string | null;
@@ -73,6 +74,18 @@ export const HospitalIntegrationPanel: React.FC<HospitalIntegrationPanelProps> =
   const [selectedHospitalForCreds, setSelectedHospitalForCreds] = useState<Hospital | null>(null);
   const [freshCredentials, setFreshCredentials] = useState<{ apiKey: string; apiSecret?: string; webhookSecret?: string } | null>(null);
 
+  // API & Webhook Settings specific state
+  const [settingsTab, setSettingsTab] = useState<'credentials' | 'webhook' | 'logs' | 'docs'>('credentials');
+  const [webhookUrlInput, setWebhookUrlInput] = useState('');
+  const [webhookEnabledInput, setWebhookEnabledInput] = useState(true);
+  const [savingWebhook, setSavingWebhook] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  const [hospitalLogs, setHospitalLogs] = useState<SyncLog[]>([]);
+  const [loadingHospitalLogs, setLoadingHospitalLogs] = useState(false);
+  const [hospitalLogFilter, setHospitalLogFilter] = useState<string>('all');
+  const [testWebhookStatus, setTestWebhookStatus] = useState<{ running: boolean; result: any | null }>({ running: false, result: null });
+
   // Doctor Assignment Modal
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedHospitalForAssign, setSelectedHospitalForAssign] = useState<Hospital | null>(null);
@@ -96,7 +109,7 @@ export const HospitalIntegrationPanel: React.FC<HospitalIntegrationPanelProps> =
     email: '',
     address: '',
     website_url: '',
-    status: 'active' as 'active' | 'inactive',
+    status: 'active' as 'active' | 'inactive' | 'suspended',
     total_hospital_serials: 100,
     online_quota: 20,
     webhook_url: '',
@@ -307,6 +320,147 @@ export const HospitalIntegrationPanel: React.FC<HospitalIntegrationPanelProps> =
       loadHospitals();
     } catch (err: any) {
       showNotify(err.message || 'Error executing webhook ping', 'error');
+    }
+  };
+
+  // Open API & Webhook Settings for a specific hospital
+  const openApiWebhookSettings = (hospital: Hospital, initialTab: 'credentials' | 'webhook' | 'logs' | 'docs' = 'credentials') => {
+    setSelectedHospitalForCreds(hospital);
+    setWebhookUrlInput(hospital.webhook_url || '');
+    setWebhookEnabledInput(hospital.webhook_enabled !== undefined ? Boolean(hospital.webhook_enabled) : true);
+    setSettingsTab(initialTab);
+    setShowApiKey(false);
+    setShowWebhookSecret(false);
+    setTestWebhookStatus({ running: false, result: null });
+    setShowCredsModal(true);
+    if (initialTab === 'logs') {
+      loadHospitalLogs(hospital.id, hospitalLogFilter);
+    }
+  };
+
+  // Load sync logs for a specific hospital
+  const loadHospitalLogs = async (hospitalId: number, eventFilter: string = 'all') => {
+    setLoadingHospitalLogs(true);
+    try {
+      const token = getAuthToken();
+      let url = `/api/admin/hospitals/${hospitalId}/sync-logs?limit=50`;
+      if (eventFilter && eventFilter !== 'all') {
+        url += `&event=${encodeURIComponent(eventFilter)}`;
+      }
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHospitalLogs(data.logs || []);
+      }
+    } catch (err: any) {
+      showNotify(err.message || 'Error loading hospital webhook logs', 'error');
+    } finally {
+      setLoadingHospitalLogs(false);
+    }
+  };
+
+  // Save Webhook URL & Enabled state
+  const handleSaveWebhook = async (hospitalId: number) => {
+    setSavingWebhook(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/admin/hospitals/${hospitalId}/webhook`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          webhook_url: webhookUrlInput.trim(),
+          webhook_enabled: webhookEnabledInput,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotify('Webhook settings updated successfully.');
+        // Update local hospital object
+        if (selectedHospitalForCreds && selectedHospitalForCreds.id === hospitalId) {
+          setSelectedHospitalForCreds({
+            ...selectedHospitalForCreds,
+            webhook_url: webhookUrlInput.trim() || null,
+            webhook_enabled: webhookEnabledInput,
+          });
+        }
+        loadHospitals();
+      } else {
+        showNotify(data.error || 'Failed to update webhook settings', 'error');
+      }
+    } catch (err: any) {
+      showNotify(err.message || 'Network error updating webhook', 'error');
+    } finally {
+      setSavingWebhook(false);
+    }
+  };
+
+  // Toggle webhook enabled directly
+  const handleToggleWebhook = async (hospitalId: number, enabled: boolean) => {
+    setWebhookEnabledInput(enabled);
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/admin/hospitals/${hospitalId}/webhook`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          webhook_enabled: enabled,
+        }),
+      });
+      if (res.ok) {
+        showNotify(`Webhook ${enabled ? 'enabled' : 'disabled'} for this hospital.`);
+        if (selectedHospitalForCreds && selectedHospitalForCreds.id === hospitalId) {
+          setSelectedHospitalForCreds({
+            ...selectedHospitalForCreds,
+            webhook_enabled: enabled,
+          });
+        }
+        loadHospitals();
+      }
+    } catch (err: any) {
+      showNotify(err.message || 'Error updating webhook status', 'error');
+    }
+  };
+
+  // Run test webhook specifically in modal
+  const handleTestWebhookFromSettings = async (hospitalId: number) => {
+    setTestWebhookStatus({ running: true, result: null });
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/admin/hospitals/${hospitalId}/test-webhook`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      setTestWebhookStatus({
+        running: false,
+        result: {
+          success: data.success,
+          httpStatus: data.httpStatus,
+          error: data.error,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      });
+      if (data.success) {
+        showNotify(`Webhook delivered successfully! HTTP ${data.httpStatus || 200}`);
+      } else {
+        showNotify(`Webhook test failed: ${data.error || 'Connection refused'}`, 'error');
+      }
+      loadHospitalLogs(hospitalId, hospitalLogFilter);
+      loadHospitals();
+    } catch (err: any) {
+      setTestWebhookStatus({
+        running: false,
+        result: { success: false, error: err.message, timestamp: new Date().toLocaleTimeString() },
+      });
+      showNotify(err.message || 'Error running webhook test', 'error');
     }
   };
 
@@ -725,25 +879,22 @@ export const HospitalIntegrationPanel: React.FC<HospitalIntegrationPanelProps> =
                         </td>
 
                         <td className="px-4 py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1 flex-wrap">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
                             <button
                               type="button"
-                              onClick={() => {
-                                setSelectedHospitalForCreds(hospital);
-                                setFreshCredentials(null);
-                                setShowCredsModal(true);
-                              }}
-                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                              title="API Credentials & Integration Settings"
+                              onClick={() => openApiWebhookSettings(hospital, 'credentials')}
+                              className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 flex items-center gap-1.5 text-xs shadow-2xs cursor-pointer transition"
+                              title="Configure API Credentials, Webhooks, and View Logs"
                             >
                               <Key className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>API & Webhook</span>
                             </button>
 
                             <button
                               type="button"
                               onClick={() => handleTestWebhook(hospital.id)}
                               className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                              title="Test Connection / Webhook Ping"
+                              title="Test Webhook Ping"
                             >
                               <Send className="w-3.5 h-3.5 text-emerald-600" />
                             </button>
@@ -1346,159 +1497,669 @@ export const HospitalIntegrationPanel: React.FC<HospitalIntegrationPanelProps> =
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: CREDENTIALS & INTEGRATION SETTINGS */}
+      {/* MODAL 2: HOSPITAL API & WEBHOOK SETTINGS */}
       {/* ========================================================================= */}
       {showCredsModal && selectedHospitalForCreds && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-5 sm:p-7 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3 gap-3">
               <div>
-                <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                  <Key className="w-5 h-5 text-indigo-600" />
-                  <span>API Credentials & Webhook Secrets</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded font-mono font-bold bg-slate-100 text-slate-800 text-xs">
+                    {selectedHospitalForCreds.hospital_code}
+                  </span>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-xs font-semibold text-slate-500">ID: #{selectedHospitalForCreds.id}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                      selectedHospitalForCreds.api_status === 'active'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
+                  >
+                    API: {selectedHospitalForCreds.api_status}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      (selectedHospitalForCreds.webhook_enabled !== undefined ? selectedHospitalForCreds.webhook_enabled : true)
+                        ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    }`}
+                  >
+                    Webhook: {(selectedHospitalForCreds.webhook_enabled !== undefined ? selectedHospitalForCreds.webhook_enabled : true) ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+                <h3 className="text-lg font-extrabold text-slate-900 mt-1 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-indigo-600" />
+                  <span>{selectedHospitalForCreds.name} — API & Webhook Settings</span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {selectedHospitalForCreds.name} ({selectedHospitalForCreds.hospital_code})
-                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCredsModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer font-bold"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer font-bold shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            {/* Fresh Secret Warning Banner */}
-            {freshCredentials?.apiSecret && (
-              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-amber-800">
-                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Important: Copy Your API Secret Now</span>
-                </div>
-                <p className="text-[11px] text-amber-800 font-normal">
-                  For security, the API Secret is hashed in the database and will <strong>never be shown again</strong>. Please copy and store it in your hospital server's environment configuration.
-                </p>
-              </div>
-            )}
+            {/* Modal Tabs */}
+            <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setSettingsTab('credentials')}
+                className={`px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
+                  settingsTab === 'credentials'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>API Credentials</span>
+              </button>
 
-            <div className="space-y-4">
-              {/* Hospital Code */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hospital Code / ID</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={selectedHospitalForCreds.hospital_code}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono font-bold text-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(selectedHospitalForCreds.hospital_code, 'hosp_code')}
-                    className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
-                    title="Copy Hospital Code"
-                  >
-                    {copiedKey === 'hosp_code' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => setSettingsTab('webhook')}
+                className={`px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
+                  settingsTab === 'webhook'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Webhook Management</span>
+              </button>
 
-              {/* API Key */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Live API Key</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={freshCredentials?.apiKey || selectedHospitalForCreds.api_key || 'No active key'}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono text-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(freshCredentials?.apiKey || selectedHospitalForCreds.api_key || '', 'api_key')}
-                    className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
-                    title="Copy API Key"
-                  >
-                    {copiedKey === 'api_key' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsTab('logs');
+                  loadHospitalLogs(selectedHospitalForCreds.id, hospitalLogFilter);
+                }}
+                className={`px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
+                  settingsTab === 'logs'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Webhook Event Logs</span>
+              </button>
 
-              {/* API Secret (if just created/regenerated) */}
-              {freshCredentials?.apiSecret && (
+              <button
+                type="button"
+                onClick={() => setSettingsTab('docs')}
+                className={`px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
+                  settingsTab === 'docs'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>API Documentation & HMAC</span>
+              </button>
+            </div>
+
+            {/* TAB 1: API CREDENTIALS */}
+            {settingsTab === 'credentials' && (
+              <div className="space-y-4">
+                {/* Fresh Secret Warning Banner (Shown Only Right After Generation) */}
+                {freshCredentials?.apiSecret && (
+                  <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-400 text-amber-950 text-xs space-y-2 animate-in fade-in">
+                    <div className="flex items-center gap-2 font-extrabold text-amber-900 text-sm">
+                      <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+                      <span>Important: Save Your API Secret Now</span>
+                    </div>
+                    <p className="leading-relaxed">
+                      For maximum security, this API Secret is cryptographically hashed with bcrypt in the database and <strong>will NEVER be shown again in plain text</strong>. Copy and store it immediately in your hospital server's environment configuration.
+                    </p>
+                    <div className="bg-white p-3 rounded-xl border border-amber-300 flex items-center justify-between gap-2">
+                      <code className="font-mono font-bold text-rose-800 text-xs sm:text-sm break-all">
+                        {freshCredentials.apiSecret}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(freshCredentials.apiSecret!, 'fresh_api_secret')}
+                        className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 transition"
+                      >
+                        {copiedKey === 'fresh_api_secret' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedKey === 'fresh_api_secret' ? 'Copied' : 'Copy Secret'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hospital Code / ID */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider text-rose-700">
-                    Live API Secret (Generated)
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
+                    <span>Hospital ID / Hospital Code</span>
+                    <span className="text-[11px] text-slate-400 lowercase font-normal">use in X-Hospital-ID header</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={freshCredentials.apiSecret}
-                      className="w-full px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs font-mono text-rose-900 font-bold"
+                      value={selectedHospitalForCreds.hospital_code}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-bold text-slate-900"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(freshCredentials.apiSecret!, 'api_secret')}
-                      className="p-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shrink-0"
-                      title="Copy Secret"
+                      onClick={() => copyToClipboard(selectedHospitalForCreds.hospital_code, 'modal_hosp_code')}
+                      className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
+                      title="Copy Hospital Code"
                     >
-                      {copiedKey === 'api_secret' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {copiedKey === 'modal_hosp_code' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
-              )}
 
-              {/* Webhook Secret */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Webhook Signing Secret</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={freshCredentials?.webhookSecret || selectedHospitalForCreds.webhook_secret || 'whsec_configured'}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono text-slate-800"
-                  />
+                {/* API Key */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
+                    <span>Live API Key</span>
+                    <span className="text-[11px] text-slate-400 lowercase font-normal">use in X-API-Key header</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const fullApiKey = freshCredentials?.apiKey || selectedHospitalForCreds.api_key || 'No active key';
+                      const isMasked = !showApiKey && fullApiKey !== 'No active key';
+                      const displayKey = isMasked
+                        ? (fullApiKey.length > 12 ? `${fullApiKey.slice(0, 8)}••••••••••••••••••••••••${fullApiKey.slice(-4)}` : '••••••••••••••••')
+                        : fullApiKey;
+                      return (
+                        <>
+                          <input
+                            type="text"
+                            readOnly
+                            value={displayKey}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowApiKey(!showApiKey)}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
+                            title={showApiKey ? 'Mask Key' : 'Reveal Key'}
+                          >
+                            {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(fullApiKey, 'modal_api_key')}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
+                            title="Copy API Key"
+                          >
+                            {copiedKey === 'modal_api_key' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* API Secret (Securely Stored in DB) */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
+                    <span>API Secret Status</span>
+                    <span className="text-[11px] text-emerald-600 font-semibold">Bcrypt Hashed & Salted</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value="••••••••••••••••••••••••••••••••••••••••••••••••"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono text-slate-500"
+                    />
+                    <span className="text-[11px] text-slate-400 px-2 shrink-0">Hashed in DB</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    To preserve security and eliminate credential leaks, API secrets are never exposed in plaintext over API responses. If the secret was misplaced, regenerate credentials below.
+                  </p>
+                </div>
+
+                {/* Quota & Status Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Allocated Online Quota:</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {selectedHospitalForCreds.online_quota} serials / {selectedHospitalForCreds.total_hospital_serials} total
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Last API Request:</span>
+                    <span className="font-mono text-slate-800">
+                      {selectedHospitalForCreds.last_api_request_at
+                        ? selectedHospitalForCreds.last_api_request_at.replace('T', ' ').substring(0, 19)
+                        : 'Never'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(freshCredentials?.webhookSecret || selectedHospitalForCreds.webhook_secret || '', 'wh_secret')}
-                    className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
-                    title="Copy Webhook Secret"
+                    onClick={() => handleRevokeCredentials(selectedHospitalForCreds.id)}
+                    className="px-3 py-2 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-bold cursor-pointer transition flex items-center gap-1.5"
                   >
-                    {copiedKey === 'wh_secret' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Revoke API Credentials</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRegenerateCredentials(selectedHospitalForCreds.id)}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs cursor-pointer transition flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Generate / Regenerate Credentials</span>
                   </button>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Action Buttons */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+            {/* TAB 2: WEBHOOK SETTINGS */}
+            {settingsTab === 'webhook' && (
+              <div className="space-y-4">
+                {/* Webhook Enable / Disable Toggle */}
+                <div className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 bg-slate-50">
+                  <div>
+                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Webhook Event Dispatching</p>
+                    <p className="text-[11px] text-slate-500">
+                      Send real-time updates for booked and cancelled appointments to the hospital system.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleWebhook(selectedHospitalForCreds.id, !webhookEnabledInput)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1.5 ${
+                      webhookEnabledInput
+                        ? 'bg-emerald-600 text-white shadow-xs hover:bg-emerald-700'
+                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${webhookEnabledInput ? 'bg-white' : 'bg-slate-500'}`} />
+                    <span>{webhookEnabledInput ? 'Webhook Enabled' : 'Webhook Disabled'}</span>
+                  </button>
+                </div>
+
+                {/* Webhook URL Input */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Hospital Webhook Endpoint URL
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={webhookUrlInput}
+                      onChange={(e) => setWebhookUrlInput(e.target.value)}
+                      placeholder="https://hospital.com/api/daktar-serial/webhook"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-hidden bg-white"
+                    />
+                    <button
+                      type="button"
+                      disabled={savingWebhook}
+                      onClick={() => handleSaveWebhook(selectedHospitalForCreds.id)}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer shrink-0 transition disabled:opacity-50"
+                    >
+                      {savingWebhook ? 'Saving...' : 'Save URL'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500">Must be a secure HTTPS endpoint accessible from the internet.</p>
+                </div>
+
+                {/* Webhook Secret */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>Webhook Signing Secret</span>
+                    <span className="text-[11px] text-slate-400 lowercase font-normal">used to verify X-DaktarSerial-Signature</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const fullSecret = freshCredentials?.webhookSecret || selectedHospitalForCreds.webhook_secret || 'whsec_default';
+                      const isMasked = !showWebhookSecret;
+                      const displaySecret = isMasked
+                        ? (fullSecret.length > 10 ? `${fullSecret.slice(0, 6)}••••••••••••••••••••••••${fullSecret.slice(-4)}` : '••••••••••••••••')
+                        : fullSecret;
+                      return (
+                        <>
+                          <input
+                            type="text"
+                            readOnly
+                            value={displaySecret}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-800"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
+                            title={showWebhookSecret ? 'Mask Secret' : 'Reveal Secret'}
+                          >
+                            {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(fullSecret, 'modal_wh_secret')}
+                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer shrink-0"
+                            title="Copy Webhook Secret"
+                          >
+                            {copiedKey === 'modal_wh_secret' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Webhook Delivery Status & Last Webhook Info */}
+                <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      Webhook Health & Delivery Status
+                    </span>
+                    <button
+                      type="button"
+                      disabled={testWebhookStatus.running}
+                      onClick={() => handleTestWebhookFromSettings(selectedHospitalForCreds.id)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition disabled:opacity-50"
+                    >
+                      <Send className={`w-3.5 h-3.5 ${testWebhookStatus.running ? 'animate-spin' : ''}`} />
+                      <span>{testWebhookStatus.running ? 'Testing...' : 'Test Webhook Endpoint'}</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-500 block">Last Dispatched:</span>
+                      <span className="font-mono text-slate-900 font-bold">
+                        {selectedHospitalForCreds.last_webhook_at
+                          ? selectedHospitalForCreds.last_webhook_at.replace('T', ' ').substring(0, 19)
+                          : 'No webhooks sent yet'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-500 block">Aggregated Delivery Stats:</span>
+                      <span className="text-slate-800 font-semibold">
+                        <strong className="text-emerald-700">{selectedHospitalForCreds.successful_syncs_count || 0}</strong> Successful /{' '}
+                        <strong className="text-rose-700">{selectedHospitalForCreds.failed_syncs_count || 0}</strong> Failed
+                      </span>
+                    </div>
+                  </div>
+
+                  {selectedHospitalForCreds.last_error_message && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px]">
+                      <strong>Last Error:</strong> {selectedHospitalForCreds.last_error_message}
+                    </div>
+                  )}
+
+                  {/* Real-Time Test Output Result */}
+                  {testWebhookStatus.result && (
+                    <div className="mt-2 p-3 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-800">
+                        <span className="font-bold text-amber-400">Ping Result ({testWebhookStatus.result.timestamp})</span>
+                        <span className={testWebhookStatus.result.success ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          {testWebhookStatus.result.success ? `HTTP ${testWebhookStatus.result.httpStatus || 200} OK` : 'FAILED'}
+                        </span>
+                      </div>
+                      {testWebhookStatus.result.error && (
+                        <p className="text-rose-400">{testWebhookStatus.result.error}</p>
+                      )}
+                      {testWebhookStatus.result.success && (
+                        <p className="text-emerald-400">Endpoint returned HTTP {testWebhookStatus.result.httpStatus || 200}. HMAC signature verified.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: WEBHOOK EVENT LOGS */}
+            {settingsTab === 'logs' && (
+              <div className="space-y-3">
+                {/* Event Filter Bar */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-slate-500 font-semibold">Event:</span>
+                    {[
+                      { id: 'all', label: 'All Events' },
+                      { id: 'appointment.booked', label: 'appointment.booked' },
+                      { id: 'appointment.cancelled', label: 'appointment.cancelled' },
+                      { id: 'appointment.updated', label: 'appointment.updated' },
+                      { id: 'integration.test', label: 'integration.test' },
+                    ].map((btn) => (
+                      <button
+                        key={btn.id}
+                        type="button"
+                        onClick={() => {
+                          setHospitalLogFilter(btn.id);
+                          loadHospitalLogs(selectedHospitalForCreds.id, btn.id);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                          hospitalLogFilter === btn.id
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={loadingHospitalLogs}
+                    onClick={() => loadHospitalLogs(selectedHospitalForCreds.id, hospitalLogFilter)}
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 cursor-pointer"
+                    title="Refresh Logs"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingHospitalLogs ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {/* Logs Table */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white max-h-72 overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 text-[11px] uppercase">
+                      <tr>
+                        <th className="px-3 py-2.5">Time</th>
+                        <th className="px-3 py-2.5">Event</th>
+                        <th className="px-3 py-2.5">Details</th>
+                        <th className="px-3 py-2.5">Status</th>
+                        <th className="px-3 py-2.5">HTTP</th>
+                        <th className="px-3 py-2.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {hospitalLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-slate-400 text-xs">
+                            {loadingHospitalLogs ? 'Loading logs...' : 'No webhook event logs recorded for this hospital.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        hospitalLogs.map((l) => (
+                          <tr key={l.id} className="hover:bg-slate-50/70 transition">
+                            <td className="px-3 py-2 font-mono text-[10px] text-slate-600">
+                              {l.created_at?.replace('T', ' ').substring(0, 19)}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">
+                                {l.event}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-[11px]">
+                              {l.serial_number && <span className="font-bold">Serial #{l.serial_number} </span>}
+                              {l.booking_id && <span className="text-slate-400">({l.booking_id})</span>}
+                              {l.error_message && (
+                                <p className="text-[10px] text-rose-600 truncate max-w-xs">{l.error_message}</p>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                  l.status === 'success'
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-rose-50 text-rose-700'
+                                }`}
+                              >
+                                {l.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 font-mono text-slate-700 text-[11px]">
+                              {l.http_status || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {l.direction === 'daktar_to_hospital' && l.status === 'failed' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRetryLog(l.id)}
+                                  className="px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold cursor-pointer"
+                                >
+                                  Retry
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: API DOCUMENTATION & HMAC SPECIFICATION */}
+            {settingsTab === 'docs' && (
+              <div className="space-y-5 text-xs sm:text-sm">
+                {/* Headers */}
+                <div className="space-y-1.5">
+                  <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                    1. Authentication Headers (Required for every API request)
+                  </h4>
+                  <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl font-mono text-xs overflow-x-auto space-y-1">
+                    <div><span className="text-amber-400">X-Hospital-ID</span>: {selectedHospitalForCreds.hospital_code}</div>
+                    <div><span className="text-amber-400">X-API-Key</span>: {selectedHospitalForCreds.api_key || 'ds_live_...'}</div>
+                    <div><span className="text-amber-400">Content-Type</span>: application/json</div>
+                  </div>
+                </div>
+
+                {/* Integration Endpoints */}
+                <div className="space-y-2.5">
+                  <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                    2. Available Hospital Integration Endpoints
+                  </h4>
+
+                  <div className="space-y-2">
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-emerald-100 text-emerald-800 text-[11px]">GET</span>
+                        <code className="font-mono font-bold text-slate-900 text-xs">/api/integration/hospital/doctors</code>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1">
+                        Returns list of authorized doctors linked to your hospital along with specialties, chamber IDs, and quota limits.
+                      </p>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-emerald-100 text-emerald-800 text-[11px]">GET</span>
+                        <code className="font-mono font-bold text-slate-900 text-xs">/api/integration/hospital/schedules?doctor_id=3</code>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1">
+                        Retrieves active weekly consulting schedule sessions and total serial capacities.
+                      </p>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-emerald-100 text-emerald-800 text-[11px]">GET</span>
+                        <code className="font-mono font-bold text-slate-900 text-xs">/api/integration/hospital/serials?doctor_id=3&chamber_id=2&date=2026-10-04</code>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1">
+                        Queries real-time serial slot statuses (1..N) marked as <span className="text-emerald-700 font-bold">available</span> or <span className="text-rose-700 font-bold">booked</span>.
+                      </p>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-indigo-100 text-indigo-800 text-[11px]">POST</span>
+                        <code className="font-mono font-bold text-slate-900 text-xs">/api/integration/hospital/booking</code>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Synchronizes a booking made on the hospital website. Atomically locks the serial in Daktar Serial with double-booking prevention.
+                      </p>
+                      <div className="bg-slate-900 text-slate-100 p-3 rounded-lg font-mono text-[11px] overflow-x-auto">
+{`{
+  "doctor_id": 3,
+  "serial_number": 5,
+  "appointment_date": "2026-10-04",
+  "external_booking_id": "HB-98765",
+  "idempotency_key": "IDEM-HB-98765",
+  "patient_name": "Rahim Uddin",
+  "patient_phone": "017XXXXXXXX"
+}`}
+                      </div>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold bg-rose-100 text-rose-800 text-[11px]">POST</span>
+                        <code className="font-mono font-bold text-slate-900 text-xs">/api/integration/hospital/cancel</code>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Cancels an existing hospital booking and atomically frees the serial slot back to available.
+                      </p>
+                      <div className="bg-slate-900 text-slate-100 p-2.5 rounded-lg font-mono text-[11px] overflow-x-auto">
+{`{
+  "external_booking_id": "HB-98765",
+  "reason": "Cancelled by patient"
+}`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* HMAC Verification */}
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                    3. HMAC-SHA256 Webhook Signature Verification
+                  </h4>
+                  <p className="text-slate-600 leading-relaxed text-xs">
+                    Every webhook event sent from Daktar Serial includes an HMAC-SHA256 signature in the <code className="font-bold text-slate-900">X-DaktarSerial-Signature</code> header.
+                    Hospital servers should verify this signature before processing payloads:
+                  </p>
+                  <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl font-mono text-[11px] overflow-x-auto">
+{`// Node.js / Express Webhook Verification:
+const crypto = require('crypto');
+
+function verifyWebhook(rawBody, signature, timestamp, webhookSecret) {
+  const data = timestamp + '.' + rawBody;
+  const expectedSig = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(data)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSig)
+  );
+}`}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
               <button
                 type="button"
-                onClick={() => handleRevokeCredentials(selectedHospitalForCreds.id)}
-                className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold cursor-pointer"
+                onClick={() => setShowCredsModal(false)}
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shadow-xs"
               >
-                Revoke Credentials
+                Close
               </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleRegenerateCredentials(selectedHospitalForCreds.id)}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold cursor-pointer"
-                >
-                  Regenerate Secret
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCredsModal(false)}
-                  className="px-4 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold cursor-pointer"
-                >
-                  Done
-                </button>
-              </div>
             </div>
           </div>
         </div>
