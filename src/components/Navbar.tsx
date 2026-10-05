@@ -33,17 +33,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
           <button
             type="button"
             onClick={() => setCurrentView('home')}
-            aria-label="Daktar Serial — Home"
-            title="Daktar Serial"
-            className="flex items-center cursor-pointer group shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            aria-label="Doctor Serial — Home"
+            title="Doctor Serial"
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
           >
             <img
               src="/logo.png"
-              alt="Daktar Serial"
+              alt="Doctor Serial"
               width={1254}
               height={1254}
               className="h-10 w-auto sm:h-12 max-w-[44px] sm:max-w-[52px] object-contain rounded-xl shadow-sm ring-1 ring-slate-900/5 group-hover:scale-[1.03] transition-transform"
             />
+            <div className="flex flex-col text-left">
+              <span className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-slate-900 leading-tight">
+                Doctor <span className="text-emerald-600">Serial</span>
+              </span>
+              <span className="text-[9px] sm:text-[10px] uppercase font-semibold tracking-wider text-slate-400 block -mt-0.5">
+                {t('Doctor Chamber Booking', 'ডাক্তার চেম্বার বুকিং')}
+              </span>
+            </div>
           </button>
 
           {/* Nav Links */}

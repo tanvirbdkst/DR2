@@ -14,17 +14,25 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
             <button
               type="button"
               onClick={() => onNavigate?.('home')}
-              aria-label="Daktar Serial — Home"
-              title="Daktar Serial"
-              className="flex items-center cursor-pointer w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+              aria-label="Doctor Serial — Home"
+              title="Doctor Serial"
+              className="flex items-center gap-3 cursor-pointer w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 group"
             >
               <img
                 src="/logo.png"
-                alt="Daktar Serial"
+                alt="Doctor Serial"
                 width={1254}
                 height={1254}
                 className="h-12 w-auto max-w-[64px] object-contain rounded-xl ring-1 ring-white/10"
               />
+              <div className="flex flex-col text-left">
+                <span className="text-base sm:text-lg font-bold tracking-tight text-white leading-tight">
+                  Doctor <span className="text-emerald-400">Serial</span>
+                </span>
+                <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400 block -mt-0.5">
+                  {t('Chamber Booking Platform', 'চেম্বার বুকিং প্ল্যাটফর্ম')}
+                </span>
+              </div>
             </button>
             <p className="text-slate-400 text-xs leading-relaxed">
               {t(
