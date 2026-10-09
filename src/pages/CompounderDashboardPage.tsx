@@ -6,6 +6,7 @@ import {
   Building2, ChevronRight, DollarSign, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
+import { NotificationBell } from '../components/NotificationBell.js';
 
 interface CompounderDashboardPageProps {
   onNavigate?: (view: string) => void;
@@ -101,7 +102,7 @@ const CLINICAL_STATUS_META: Record<string, { label: string; className: string }>
   cancelled: { label: 'Cancelled', className: 'bg-rose-100 text-rose-700 border-rose-200' },
 };
 
-export const CompounderDashboardPage: React.FC<CompounderDashboardPageProps> = () => {
+export const CompounderDashboardPage: React.FC<CompounderDashboardPageProps> = ({ onNavigate }) => {
   const { user, logout, t } = useAuth();
 
   // Top navigation menu: 'serial-booking' | 'schedule' | 'queue'
@@ -337,6 +338,8 @@ export const CompounderDashboardPage: React.FC<CompounderDashboardPageProps> = (
         </div>
 
         <div className="flex items-center gap-2.5">
+          <NotificationBell role="compounder" onNavigate={onNavigate} />
+
           <button
             onClick={loadDashboard}
             disabled={loading}

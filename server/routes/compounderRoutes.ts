@@ -3,6 +3,7 @@ import pool, { logActivity } from '../db.js';
 import { compounderMiddleware } from '../auth.js';
 import { RowDataPacket } from 'mysql2/promise';
 import { bookAppointment, BookingError, DUPLICATE_BOOKING_MESSAGE_BN } from '../appointmentService.js';
+import { notifyAppointmentCancelled } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -416,10 +417,15 @@ router.patch('/appointments/:id/status', async (req, res) => {
     }
 
     // Verify appointment belongs strictly to authorized doctor
-    const [apptRows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, appointment_id, doctor_id, chamber_id, schedule_date, serial_number, patient_name FROM appointments WHERE id = ? AND doctor_id = ?',
-      [id, doctorId]
-    );
+    const [apptRows] = await pool.query<RowDataPacket[]>(`
+      SELECT a.id, a.appointment_id, a.doctor_id, a.chamber_id, a.schedule_date, a.serial_number, a.patient_name,
+             u.name as doctor_name, c.name as chamber_name
+      FROM appointments a
+      JOIN doctors d ON a.doctor_id = d.id
+      JOIN users u ON d.user_id = u.id
+      JOIN chambers c ON a.chamber_id = c.id
+      WHERE a.id = ? AND a.doctor_id = ?
+    `, [id, doctorId]);
     const appt = apptRows[0] as any;
     if (!appt) {
       return res.status(404).json({ error: 'Appointment not found or does not belong to your assigned doctor.' });
@@ -448,6 +454,22 @@ router.patch('/appointments/:id/status', async (req, res) => {
       }
 
       await conn.commit();
+
+      if (status === 'cancelled') {
+        notifyAppointmentCancelled({
+          appointmentId: appt.appointment_id,
+          serialNumber: appt.serial_number,
+          scheduleDate: appt.schedule_date,
+          doctorId: appt.doctor_id,
+          doctorName: appt.doctor_name || 'Doctor',
+          chamberId: appt.chamber_id,
+          chamberName: appt.chamber_name || 'Chamber',
+          patientName: appt.patient_name,
+          cancelledByRole: 'compounder',
+        }).catch((notifErr) => {
+          console.warn('[Notification] Compounder cancel notice warning:', notifErr.message);
+        });
+      }
     } catch (txErr) {
       await conn.rollback();
       throw txErr;

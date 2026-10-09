@@ -16,3 +16,9 @@ tmp/
 uploads/
 
 package.json.backup
+
+# Firebase Service Account Credentials & Private Keys
+*firebase-adminsdk*.json
+*-service-account*.json
+*.pem
+*.key

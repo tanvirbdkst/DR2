@@ -402,6 +402,30 @@ function ensureSqliteColumns(db: DatabaseSync) {
         idempotency_key TEXT NULL,
         created_at TEXT DEFAULT (datetime('now'))
       );
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        data TEXT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        read_at TEXT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS fcm_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        device_type TEXT NOT NULL DEFAULT 'web',
+        user_agent TEXT NULL,
+        last_used_at TEXT DEFAULT (datetime('now')),
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
     `);
   } catch {
     // ignore

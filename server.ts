@@ -16,6 +16,8 @@ import hospitalIntegrationRoutes from './server/routes/hospitalIntegrationRoutes
 import adminHospitalRoutes from './server/routes/adminHospitalRoutes.js';
 import testRoutes from './server/routes/testRoutes.js';
 import uploadRoutes from './server/routes/uploadRoutes.js';
+import notificationRoutes from './server/routes/notificationRoutes.js';
+import { initializeFirebaseAdmin } from './server/services/firebaseAdminService.js';
 import {
   getDoctorForMeta,
   getBaseUrl,
@@ -29,6 +31,9 @@ const currentDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 async function startServer() {
   // Initialize Database Connection Pool
   await initDatabase();
+
+  // Initialize Firebase Admin Push Notification SDK
+  initializeFirebaseAdmin();
 
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -91,6 +96,7 @@ async function startServer() {
   app.use('/api/compounder', compounderRoutes);
   app.use('/api/public', publicRoutes);
   app.use('/api/appointments', appointmentRoutes);
+  app.use('/api/notifications', notificationRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/test', testRoutes);
 

@@ -11,6 +11,7 @@ import { getAuthToken } from '../config/api.js';
 import { DoctorProfile, Specialty } from '../types.js';
 import { District, BANGLADESH_DISTRICTS } from '../data/districts.js';
 import { HospitalIntegrationPanel } from '../components/HospitalIntegrationPanel.js';
+import { NotificationBell } from '../components/NotificationBell.js';
 
 interface AdminDashboardPageProps {
   onNavigate?: (view: string) => void;
@@ -887,6 +888,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <NotificationBell role="admin" onNavigate={onNavigate} />
+
           <button
             onClick={loadAdminData}
             disabled={loading}

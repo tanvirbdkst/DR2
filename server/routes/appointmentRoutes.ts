@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool, { logActivity } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { sendHospitalWebhook } from '../services/hospitalIntegrationService.js';
+import { notifyAppointmentCancelled } from '../services/notificationService.js';
 import { RowDataPacket } from 'mysql2/promise';
 import { bookAppointment, BookingError, DUPLICATE_BOOKING_MESSAGE_BN } from '../appointmentService.js';
 
@@ -235,9 +236,11 @@ router.patch('/cancel/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
 
     const [apptRows] = await pool.query<RowDataPacket[]>(`
-      SELECT a.*, d.user_id as doctor_user_id
+      SELECT a.*, d.user_id as doctor_user_id, u.name as doctor_name, c.name as chamber_name
       FROM appointments a
       JOIN doctors d ON a.doctor_id = d.id
+      JOIN users u ON d.user_id = u.id
+      JOIN chambers c ON a.chamber_id = c.id
       WHERE a.id = ?
     `, [id]);
 
@@ -268,6 +271,21 @@ router.patch('/cancel/:id', requireAuth, async (req, res) => {
       `, [appt.doctor_id, appt.chamber_id, appt.schedule_date, appt.serial_number]);
 
       await conn.commit();
+
+      // Trigger In-App & Firebase Push Notifications for cancellation
+      notifyAppointmentCancelled({
+        appointmentId: appt.appointment_id,
+        serialNumber: appt.serial_number,
+        scheduleDate: appt.schedule_date,
+        doctorId: appt.doctor_id,
+        doctorName: appt.doctor_name || 'Doctor',
+        chamberId: appt.chamber_id,
+        chamberName: appt.chamber_name || 'Chamber',
+        patientName: appt.patient_name,
+        cancelledByRole: user.role,
+      }).catch((notifErr) => {
+        console.warn('[Notification] Cancellation notice warning:', notifErr.message);
+      });
     } catch (txErr) {
       await conn.rollback();
       throw txErr;

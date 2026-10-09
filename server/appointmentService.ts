@@ -1,6 +1,7 @@
 import pool from './db.js';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { sendHospitalWebhook } from './services/hospitalIntegrationService.js';
+import { notifyBookingSuccess } from './services/notificationService.js';
 
 export type BookingSource = 'online' | 'compounder' | 'admin' | 'walk_in';
 export type PaymentStatus = 'unpaid' | 'paid' | 'exempt';
@@ -282,7 +283,26 @@ export async function bookAppointment(params: BookAppointmentParams): Promise<Bo
     recordId = insertResult.insertId;
     await conn.commit();
 
-    // 5. Outgoing Webhook Synchronization to Hospital (if integrated and not external loopback)
+    // 5. Trigger In-App & Firebase Push Notifications (Admin & assigned Compounder)
+    notifyBookingSuccess({
+      appointmentId,
+      serialNumber: serialNum,
+      appointmentTime,
+      scheduleDate,
+      doctorId: docIdNum,
+      doctorName: doctor.doctor_name,
+      doctorTitle: doctor.title,
+      chamberId: chamIdNum,
+      chamberName: chamber.name,
+      patientName,
+      patientPhone,
+      fee: schedule.fee,
+      bookingSource,
+    }).catch((notifErr) => {
+      console.warn('[Notification] Background booking notice error:', notifErr.message);
+    });
+
+    // 6. Outgoing Webhook Synchronization to Hospital (if integrated and not external loopback)
     if (linkedHospitalId && bookingSource !== 'walk_in') {
       sendHospitalWebhook(linkedHospitalId, 'appointment.booked', {
         event: 'appointment.booked',
