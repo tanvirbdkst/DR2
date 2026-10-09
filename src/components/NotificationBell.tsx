@@ -11,7 +11,9 @@ import {
   ShieldCheck,
   Radio,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import {
   requestAndRegisterPush,
@@ -20,6 +22,12 @@ import {
   PermissionState
 } from '../services/webPushService.js';
 import { isFirebaseWebConfigured } from '../config/firebase.js';
+import {
+  playNotificationSound,
+  isSoundEnabled,
+  setSoundEnabled,
+  unlockAudioContext
+} from '../utils/sound.js';
 
 export interface AppNotification {
   id: number;
@@ -53,8 +61,21 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const [pushSubscribing, setPushSubscribing] = useState(false);
   const [pushFeedback, setPushFeedback] = useState<string | null>(null);
   const [testingPush, setTestingPush] = useState(false);
+  const [soundOn, setSoundOn] = useState<boolean>(() => isSoundEnabled());
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Toggle sound alert
+  const toggleSound = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    unlockAudioContext();
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+    if (next) {
+      playNotificationSound();
+    }
+  };
 
   // Check initial push status
   useEffect(() => {
@@ -89,10 +110,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           setNotifications((prev) => [newNotif, ...prev.filter((n) => n.id !== newNotif.id)]);
           setUnreadCount((prev) => prev + 1);
 
-          // Audio chime or subtle vibrate if supported
-          if ('vibrate' in navigator) {
-            navigator.vibrate([100, 50, 100]);
-          }
+          // Play notification chime sound!
+          playNotificationSound().catch(() => {});
         } catch (parseErr) {
           console.warn('[SSE] Parse error:', parseErr);
         }
@@ -112,6 +131,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     let unsubscribePush: (() => void) | null = null;
     listenForForegroundPush((payload) => {
       fetchNotifications();
+      playNotificationSound().catch(() => {});
     }).then((unsub) => {
       unsubscribePush = unsub;
     });
@@ -227,6 +247,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       <button
         type="button"
         onClick={() => {
+          unlockAudioContext();
           setIsOpen(!isOpen);
           if (!isOpen) fetchNotifications();
         }}
@@ -261,7 +282,25 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              {/* Sound Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleSound}
+                className={`p-1.5 rounded-lg border text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer ${
+                  soundOn
+                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+                }`}
+                title={soundOn ? 'সাউন্ড চালু আছে (ক্লিক করে বন্ধ করুন)' : 'সাউন্ড বন্ধ আছে (ক্লিক করে চালু করুন)'}
+                aria-label={soundOn ? 'Notification sound enabled' : 'Notification sound muted'}
+              >
+                {soundOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                <span className="text-[10px] font-medium hidden sm:inline">
+                  {soundOn ? 'সাউন্ড On' : 'Mute'}
+                </span>
+              </button>
+
               {unreadCount > 0 && (
                 <button
                   type="button"
@@ -270,7 +309,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                   title="Mark all as read"
                 >
                   <CheckCheck className="w-3 h-3 text-emerald-400" />
-                  <span>Mark all read</span>
+                  <span className="hidden sm:inline">Mark read</span>
                 </button>
               )}
             </div>
@@ -306,19 +345,33 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               )}
             </div>
 
-            {/* Test Push button for Admin / Compounder */}
+            {/* Test Push button and Test Sound for Admin / Compounder */}
             {(role === 'admin' || role === 'compounder') && (
               <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
-                <span className="text-[10px] text-slate-500">Firebase Push Diagnostic:</span>
-                <button
-                  type="button"
-                  onClick={handleSendTestPush}
-                  disabled={testingPush}
-                  className="text-[10px] text-amber-700 hover:text-amber-900 font-bold flex items-center gap-1 underline cursor-pointer disabled:opacity-50"
-                >
-                  {testingPush ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
-                  <span>Send Test Push</span>
-                </button>
+                <span className="text-[10px] text-slate-500">Alert Diagnostics:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      unlockAudioContext();
+                      playNotificationSound();
+                    }}
+                    className="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 underline cursor-pointer"
+                    title="Play chime sound test"
+                  >
+                    <Volume2 className="w-3 h-3" />
+                    <span>Test Sound</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendTestPush}
+                    disabled={testingPush}
+                    className="text-[10px] text-amber-700 hover:text-amber-900 font-bold flex items-center gap-1 underline cursor-pointer disabled:opacity-50"
+                  >
+                    {testingPush ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                    <span>Send Test Push</span>
+                  </button>
+                </div>
               </div>
             )}
 

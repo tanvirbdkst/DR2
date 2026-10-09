@@ -33,7 +33,9 @@ self.addEventListener('push', (event) => {
       tag: data.appointmentId || data.notificationId || 'daktar-serial-notif',
       renotify: true,
       requireInteraction: true,
-      vibrate: [200, 100, 200],
+      silent: false,
+      sound: '/notification.mp3',
+      vibrate: [200, 100, 200, 100, 200],
       actions: [
         {
           action: 'open',

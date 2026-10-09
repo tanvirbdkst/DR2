@@ -160,12 +160,16 @@ export async function sendPushToUser(
           icon: '/logo.png',
           badge: '/logo.png',
           requireInteraction: true,
+          silent: false,
           actions: [
             {
               action: 'open',
               title: 'View Details',
             },
           ],
+        },
+        headers: {
+          Urgency: 'high',
         },
       },
       android: {
