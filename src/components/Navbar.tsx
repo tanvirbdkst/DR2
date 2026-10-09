@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Stethoscope, CalendarCheck, ShieldCheck, User, LogOut, ChevronDown, ClipboardList } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
+import { NotificationBell } from './NotificationBell.js';
 
 interface NavbarProps {
   currentView: string;
@@ -143,7 +144,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
           </nav>
 
           {/* User Auth actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {user && (
+              <NotificationBell
+                role={user.role as any}
+                onNavigate={setCurrentView}
+              />
+            )}
+
             {user ? (
               <div className="relative">
                 <button

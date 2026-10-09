@@ -2,6 +2,7 @@ import mysql, { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { SqlitePoolWrapper } from './sqliteAdapter.js';
 import { ensureDistrictsTableInDb } from './districts.js';
+import { ensureNotificationTablesInDb } from './services/notificationService.js';
 
 dotenv.config();
 
@@ -105,6 +106,8 @@ export async function initDatabase(): Promise<void> {
     connection.release();
     // Ensure districts table exists and has 64 districts in MySQL
     await ensureDistrictsTableInDb(mysqlPool);
+    // Ensure notifications and fcm_tokens tables exist in MySQL
+    await ensureNotificationTablesInDb(mysqlPool);
   } catch (err: any) {
     isMysqlActive = false;
     console.log(`[Database] MySQL not reachable at ${dbHost}:${dbPort} (${err.code || err.message}).`);
