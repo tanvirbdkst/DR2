@@ -11,19 +11,59 @@ router.post('/register-patient', async (req, res) => {
   try {
     const { name, email, phone, password, gender, bloodGroup, dateOfBirth, address } = req.body;
 
-    if (!name || !email || !phone || !password) {
-      return res.status(400).json({ error: 'Name, email, phone, and password are required.' });
+    const trimmedName = String(name || '').trim();
+    const rawEmail = String(email || '').trim().toLowerCase();
+    const rawPhone = String(phone || '').trim();
+    const rawPassword = String(password || '').trim();
+
+    if (!trimmedName || !rawPassword) {
+      return res.status(400).json({ error: 'Name and password are required.' });
     }
 
+    if (!rawEmail && !rawPhone) {
+      return res.status(400).json({ error: 'Please provide either a Bangladesh mobile number or an email address.' });
+    }
+
+    let finalPhone = '';
+    let finalEmail = '';
+
+    if (rawPhone) {
+      const cleanDigits = rawPhone.replace(/[^0-9]/g, '');
+      if (cleanDigits.length < 10) {
+        return res.status(400).json({ error: 'Please enter a valid 11-digit Bangladesh mobile number (e.g. 01712345678).' });
+      }
+      const formatted01 = cleanDigits.startsWith('880')
+        ? cleanDigits.replace(/^88/, '')
+        : (cleanDigits.startsWith('0') ? cleanDigits : `0${cleanDigits}`);
+      finalPhone = formatted01;
+    }
+
+    if (rawEmail) {
+      finalEmail = rawEmail;
+    } else {
+      // Auto-generate unique email for phone-only registrations to satisfy DB UNIQUE constraint
+      finalEmail = `${finalPhone}@phone.drbd.com`;
+    }
+
+    if (!finalPhone) {
+      finalPhone = '01700000000';
+    }
+
+    // Check if user already exists with this email or phone
     const [existingRows] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM users WHERE email = ?',
-      [email]
+      `SELECT id, email, phone FROM users 
+       WHERE (LOWER(email) = LOWER(?) AND email NOT LIKE '%@phone.drbd.com') 
+          OR (phone = ? AND phone != '01700000000')
+          OR (phone = ? AND phone != '01700000000')`,
+      [finalEmail, finalPhone, `+88${finalPhone}`]
     );
     if (existingRows.length > 0) {
-      return res.status(400).json({ error: 'An account with this email already exists.' });
+      return res.status(400).json({ 
+        error: 'An account with this mobile number or email already exists. Please log in.' 
+      });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
 
     const conn = await pool.getConnection();
     let userId: number;
@@ -34,7 +74,7 @@ router.post('/register-patient', async (req, res) => {
 
       const [userRes] = await conn.execute<ResultSetHeader>(
         `INSERT INTO users (name, email, phone, password_hash, role, status) VALUES (?, ?, ?, ?, 'patient', 'active')`,
-        [name, email, phone, passwordHash]
+        [trimmedName, finalEmail, finalPhone, passwordHash]
       );
       userId = userRes.insertId;
 
@@ -52,12 +92,12 @@ router.post('/register-patient', async (req, res) => {
       conn.release();
     }
 
-    await logActivity(userId, 'PATIENT_REGISTER', `New patient registered: ${email}`);
+    await logActivity(userId, 'PATIENT_REGISTER', `New patient registered: ${finalPhone || finalEmail}`);
 
     const token = generateToken({
       id: userId,
-      email,
-      name,
+      email: finalEmail,
+      name: trimmedName,
       role: 'patient',
       status: 'active',
       patientId,
