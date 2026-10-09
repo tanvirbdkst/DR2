@@ -242,18 +242,25 @@ router.post('/register-doctor', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const identifier = String(email || '').trim();
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'Email or phone number and password are required.' });
     }
 
+    const cleanDigits = identifier.replace(/[^0-9]/g, '');
+    const phoneWithPlus88 = cleanDigits.length >= 10 ? (cleanDigits.startsWith('880') ? `+${cleanDigits}` : `+880${cleanDigits.replace(/^0/, '')}`) : '';
+    const phone01 = cleanDigits.length >= 10 ? (cleanDigits.startsWith('880') ? cleanDigits.replace(/^88/, '') : (cleanDigits.startsWith('0') ? cleanDigits : `0${cleanDigits}`)) : '';
+
     let [userRows] = await pool.query<RowDataPacket[]>(
-      `SELECT id, name, email, phone, password_hash, role, status, avatar_url, doctor_id FROM users WHERE email = ?`,
-      [email]
+      `SELECT id, name, email, phone, password_hash, role, status, avatar_url, doctor_id 
+       FROM users 
+       WHERE LOWER(email) = LOWER(?) OR phone = ? OR phone = ? OR phone = ?`,
+      [identifier, identifier, phoneWithPlus88, phone01]
     );
 
     let user = userRows[0] as any;
-    const isTargetAdmin = email.toLowerCase() === 'admin@drbd.com' || email.toLowerCase() === 'admin@daktarserial.com';
+    const isTargetAdmin = identifier.toLowerCase() === 'admin@drbd.com' || identifier.toLowerCase() === 'admin@daktarserial.com';
 
     if (!user && isTargetAdmin) {
       // Auto-provision production admin user if missing from database

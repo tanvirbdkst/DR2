@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { Navbar } from './components/Navbar.js';
 import { Footer } from './components/Footer.js';
-import { TestRunnerModal } from './components/TestRunnerModal.js';
 import { HomePage } from './pages/HomePage.js';
 import { DoctorsPage } from './pages/DoctorsPage.js';
 import { DoctorProfilePage } from './pages/DoctorProfilePage.js';
@@ -62,7 +61,6 @@ function MainApp() {
     location: '',
   });
   const [lastBookingData, setLastBookingData] = useState<any>(null);
-  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -114,10 +112,6 @@ function MainApp() {
   useEffect(() => {
     // 2. Hardware Android Back Button Navigation
     const cleanup = setupBackButtonHandler(() => {
-      if (isTestModalOpen) {
-        setIsTestModalOpen(false);
-        return true;
-      }
       if (currentView !== 'home') {
         if (currentView === 'doctor-profile') {
           handleNavigate('doctors');
@@ -130,7 +124,7 @@ function MainApp() {
     });
 
     return cleanup;
-  }, [currentView, isTestModalOpen]);
+  }, [currentView]);
 
   // A compounder is confined to their own panel: they must never land on the
   // admin, doctor, or patient dashboards (server-side guards back this up too).
@@ -272,15 +266,6 @@ function MainApp() {
       </main>
 
       <Footer onNavigate={handleNavigate} />
-
-      <TestRunnerModal
-        isOpen={isTestModalOpen}
-        onClose={() => setIsTestModalOpen(false)}
-        onSelectDoctor={(docId) => {
-          setIsTestModalOpen(false);
-          handleSelectDoctor(docId);
-        }}
-      />
     </div>
   );
 }

@@ -126,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
               </button>
             )}
 
-            {!isCompounder && (
+            {user?.role === 'admin' && (
               <button
                 onClick={() => setCurrentView('admin-dashboard')}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
