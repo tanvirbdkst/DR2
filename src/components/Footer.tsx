@@ -70,23 +70,9 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
 
           <div>
             <h4 className="text-white text-xs font-semibold uppercase tracking-wider mb-3">
-              {t('Administration & Support', 'অ্যাডমিন ও সাপোর্ট')}
+              {t('Emergency & Helpline', 'জরুরী যোগাযোগ ও হেল্পলাইন')}
             </h4>
             <div className="space-y-2.5 text-xs">
-              {!isCompounder && (
-                <button
-                  onClick={() => onNavigate?.('admin-dashboard')}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/20 font-medium transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-amber-400" />
-                    <span>{t('Admin Panel Portal', 'অ্যাডমিন প্যানেল পোর্টাল')}</span>
-                  </span>
-                  <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-mono">
-                    Super Admin
-                  </span>
-                </button>
-              )}
               <p className="flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-emerald-400" />
                 <span>09612-DAKTAR (09612-325827)</span>
@@ -106,17 +92,6 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
         <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-500">
           <p>© {new Date().getFullYear()} Daktar Serial MVP. All rights reserved. Phase 1 Core Booking Engine.</p>
           <div className="flex items-center gap-4 text-[11px]">
-            {!isCompounder && (
-              <>
-                <button
-                  onClick={() => onNavigate?.('admin-dashboard')}
-                  className="hover:text-amber-400 transition cursor-pointer underline underline-offset-4"
-                >
-                  Admin Portal
-                </button>
-                <span>•</span>
-              </>
-            )}
             <span>Double Booking Protection</span>
             <span>•</span>
             <span>ACID Transactional Guarantee</span>

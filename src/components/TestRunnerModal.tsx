@@ -84,13 +84,13 @@ export const TestRunnerModal: React.FC<TestRunnerModalProps> = ({ isOpen, onClos
               <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-slate-900">Admin</span>
-                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-100 text-amber-800 font-medium">Full Access</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-100 text-amber-800 font-medium">Production</span>
                 </div>
-                <p className="text-slate-500 text-[11px] truncate">admin@daktarserial.com</p>
+                <p className="text-slate-500 text-[11px] truncate">admin@drbd.com</p>
                 <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 text-[11px]">
-                  <code className="text-slate-600">Admin123!</code>
+                  <code className="text-slate-600">Tanvir@123456789</code>
                   <button
-                    onClick={() => copyCredential('admin@daktarserial.com / Admin123!', 'admin')}
+                    onClick={() => copyCredential('admin@drbd.com / Tanvir@123456789', 'admin')}
                     className="text-emerald-600 hover:text-emerald-700 cursor-pointer"
                   >
                     {copiedText === 'admin' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}

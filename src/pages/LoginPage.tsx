@@ -59,7 +59,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onNavigate }) =
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               type="button"
-              onClick={() => fillQuickDemo('admin@daktarserial.com', 'Admin123!')}
+              onClick={() => fillQuickDemo('admin@drbd.com', 'Tanvir@123456789')}
               className="py-1.5 px-2 rounded-lg bg-white border border-slate-200 hover:border-amber-500 hover:bg-amber-50 text-[11px] font-semibold text-slate-700 transition cursor-pointer text-center"
             >
               👑 Admin

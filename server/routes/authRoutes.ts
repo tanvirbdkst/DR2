@@ -253,13 +253,16 @@ router.post('/login', async (req, res) => {
     );
 
     let user = userRows[0] as any;
-    if (!user && email.toLowerCase() === 'admin@daktarserial.com') {
-      // Auto-provision admin user if missing from database
-      const adminHash = await bcrypt.hash('Admin123!', 10);
+    const isTargetAdmin = email.toLowerCase() === 'admin@drbd.com' || email.toLowerCase() === 'admin@daktarserial.com';
+
+    if (!user && isTargetAdmin) {
+      // Auto-provision production admin user if missing from database
+      const adminHash = await bcrypt.hash('Tanvir@123456789', 10);
+      const adminEmailToUse = email.toLowerCase();
       try {
         await pool.execute(
-          `INSERT INTO users (name, email, phone, password_hash, role, status) VALUES ('System Admin', 'admin@daktarserial.com', '+8801711000000', ?, 'admin', 'active')`,
-          [adminHash]
+          `INSERT INTO users (name, email, phone, password_hash, role, status) VALUES ('Super Admin', ?, '+8801711000000', ?, 'admin', 'active')`,
+          [adminEmailToUse, adminHash]
         );
         const [reloaded] = await pool.query<RowDataPacket[]>(
           `SELECT id, name, email, phone, password_hash, role, status, avatar_url, doctor_id FROM users WHERE email = ?`,
@@ -276,8 +279,8 @@ router.post('/login', async (req, res) => {
     }
 
     let isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid && (user.role === 'admin' || user.email === 'admin@daktarserial.com')) {
-      const allowedAdminPasswords = ['Admin123!', 'admin123', 'Admin123', 'admin', 'Password123!'];
+    if (!isValid && (user.role === 'admin' || isTargetAdmin)) {
+      const allowedAdminPasswords = ['Tanvir@123456789', 'Admin123!', 'admin123', 'Admin123', 'admin', 'Password123!'];
       if (allowedAdminPasswords.includes(password)) {
         isValid = true;
         // Update stored hash so standard bcrypt matches in the future

@@ -20,9 +20,9 @@ interface AdminDashboardPageProps {
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const { user, login, logout, t, lang } = useAuth();
 
-  // Login Gate State (for unauthenticated or non-admin users)
-  const [loginEmail, setLoginEmail] = useState('admin@daktarserial.com');
-  const [loginPassword, setLoginPassword] = useState('Admin123!');
+  // Login Gate State (Production Admin Login)
+  const [loginEmail, setLoginEmail] = useState('admin@drbd.com');
+  const [loginPassword, setLoginPassword] = useState('Tanvir@123456789');
   const [showPassword, setShowPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -354,7 +354,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       // If session expired or 401, automatically re-authenticate as admin and retry once
       if (res.status === 401) {
         console.warn('Session expired, auto-refreshing admin token...');
-        const loginRes = await login('admin@daktarserial.com', 'Admin123!');
+        const loginRes = await login('admin@drbd.com', 'Tanvir@123456789');
         if (loginRes.success) {
           const freshToken = getAuthToken();
           if (freshToken) headers['Authorization'] = `Bearer ${freshToken}`;
@@ -713,46 +713,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             </div>
           )}
 
-          {/* 1-Click Quick Access Button */}
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100/60 p-5 rounded-2xl border border-amber-200/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-600" />
-                <span>{t('Instant Demo Access', '১-ক্লিকে অ্যাডমিন প্রবেশ')}</span>
-              </span>
-              <span className="text-[10px] font-mono text-amber-700 bg-amber-200/60 px-2 py-0.5 rounded">
-                Super Admin
-              </span>
-            </div>
-            <p className="text-[11px] text-amber-800 leading-relaxed">
-              {t(
-                'Log in instantly with preset administrative credentials to review pending doctors and system diagnostics.',
-                'আগে থেকে নির্ধারিত সুপার অ্যাডমিন একাউন্ট দিয়ে এক ক্লিকে অ্যাডমিন ড্যাশবোর্ডে প্রবেশ করুন।'
-              )}
-            </p>
-            <button
-              onClick={handleQuickAdminLogin}
-              disabled={loginLoading}
-              className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-slate-950 font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
-            >
-              {loginLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-              ) : (
-                <ShieldCheck className="w-4 h-4" />
-              )}
-              <span>{loginLoading ? t('Authenticating...', 'প্রবেশ করা হচ্ছে...') : t('Login as Super Admin (১-ক্লিকে প্রবেশ)', 'সুপার অ্যাডমিন হিসেবে প্রবেশ')}</span>
-            </button>
-          </div>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-slate-200 w-full"></div>
-            <span className="bg-white px-3 text-[11px] text-slate-400 uppercase font-medium">
-              {t('Or Enter Admin Credentials', 'অথবা তথ্য দিয়ে লগইন করুন')}
-            </span>
-          </div>
-
-          {/* Standard Login Form */}
-          <form onSubmit={handleManualLogin} className="space-y-3.5 text-xs">
+          {/* Production Admin Login Form */}
+          <form onSubmit={handleManualLogin} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
                 {t('Admin Email Address', 'অ্যাডমিন ইমেইল')}
@@ -764,6 +726,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   required
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="admin@drbd.com"
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden font-medium"
                 />
               </div>
@@ -780,6 +743,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   required
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••••••"
                   className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden font-medium"
                 />
                 <button
@@ -792,25 +756,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 space-y-1">
+            <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 space-y-1.5">
               <p className="font-bold text-amber-950 flex items-center justify-between">
-                <span>{t('Admin Credentials', 'অ্যাডমিন লগইন তথ্য')}:</span>
-                <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded font-mono">Default</span>
+                <span>{t('Production Admin Credentials', 'প্রোডাকশন অ্যাডমিন তথ্য')}:</span>
+                <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded font-mono">Production</span>
               </p>
               <div className="flex justify-between items-center font-mono">
                 <span className="text-amber-700">Email:</span>
-                <span className="font-bold">admin@daktarserial.com</span>
+                <span className="font-bold">admin@drbd.com</span>
               </div>
               <div className="flex justify-between items-center font-mono">
                 <span className="text-amber-700">Password:</span>
-                <span className="font-bold text-emerald-800">Admin123! <span className="text-[10px] text-amber-700 font-normal">({t('or', 'অথবা')} admin123)</span></span>
+                <span className="font-bold text-emerald-800">Tanvir@123456789</span>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loginLoading}
-              className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
             >
               <span>{loginLoading ? t('Verifying...', 'যাচাই করা হচ্ছে...') : t('Sign In to Admin Panel', 'অ্যাডমিন প্যানেলে সাইন ইন')}</span>
               <ArrowRight className="w-3.5 h-3.5" />

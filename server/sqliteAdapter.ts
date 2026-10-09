@@ -523,19 +523,25 @@ function ensureSqliteColumns(db: DatabaseSync) {
 }
 
 function seedSqliteDatabase(db: DatabaseSync) {
-  const adminPasswordHash = bcrypt.hashSync('Admin123!', 10);
+  const prodAdminHash = bcrypt.hashSync('Tanvir@123456789', 10);
   const defaultPasswordHash = bcrypt.hashSync('Password123!', 10);
 
-  // Ensure admin user always exists with valid credentials
+  // Ensure production admin user always exists with valid credentials
   try {
-    const adminUser = db.prepare("SELECT id FROM users WHERE email = 'admin@daktarserial.com'").get() as { id: number } | undefined;
-    if (!adminUser) {
+    const prodAdmin = db.prepare("SELECT id FROM users WHERE email = 'admin@drbd.com'").get() as { id: number } | undefined;
+    if (!prodAdmin) {
       db.prepare(`
         INSERT INTO users (name, email, phone, password_hash, role, status)
-        VALUES ('System Admin', 'admin@daktarserial.com', '+8801711000000', ?, 'admin', 'active')
-      `).run(adminPasswordHash);
+        VALUES ('Super Admin', 'admin@drbd.com', '+8801711000000', ?, 'admin', 'active')
+      `).run(prodAdminHash);
     } else {
-      db.prepare("UPDATE users SET password_hash = ?, role = 'admin', status = 'active' WHERE email = 'admin@daktarserial.com'").run(adminPasswordHash);
+      db.prepare("UPDATE users SET password_hash = ?, role = 'admin', status = 'active' WHERE email = 'admin@drbd.com'").run(prodAdminHash);
+    }
+
+    // Keep legacy alias in sync if present
+    const legacyAdmin = db.prepare("SELECT id FROM users WHERE email = 'admin@daktarserial.com'").get() as { id: number } | undefined;
+    if (legacyAdmin) {
+      db.prepare("UPDATE users SET password_hash = ?, role = 'admin', status = 'active' WHERE id = ?").run(prodAdminHash, legacyAdmin.id);
     }
   } catch (adminErr) {
     console.error('Error ensuring admin user in sqlite:', adminErr);
@@ -566,8 +572,8 @@ function seedSqliteDatabase(db: DatabaseSync) {
   // 2. Seed Admin User
   db.prepare(`
     INSERT OR IGNORE INTO users (id, name, email, phone, password_hash, role, status)
-    VALUES (1, 'System Admin', 'admin@daktarserial.com', '+8801711000000', ?, 'admin', 'active')
-  `).run(adminPasswordHash);
+    VALUES (1, 'Super Admin', 'admin@drbd.com', '+8801711000000', ?, 'admin', 'active')
+  `).run(prodAdminHash);
 
   // 3. Seed Patient User
   db.prepare(`
