@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Clock, MapPin, Phone, ShieldAlert, FileText, Scale } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
-import { DownloadApkButton, AndroidIcon } from './DownloadApkButton.js';
+import { AndroidIcon } from './DownloadApkButton.js';
 
 export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNavigate }) => {
   const { t, lang } = useAuth();
@@ -67,9 +67,6 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
             <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-medium">
               <ShieldCheck className="w-4 h-4 text-emerald-500" />
               <span>BMDC Verified Physicians Only</span>
-            </div>
-            <div className="pt-1">
-              <DownloadApkButton variant="footer" />
             </div>
           </div>
 
