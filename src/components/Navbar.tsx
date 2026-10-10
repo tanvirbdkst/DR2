@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Stethoscope, CalendarCheck, ShieldCheck, User, LogOut, ChevronDown, ClipboardList } from 'lucide-react';
+import { Stethoscope, CalendarCheck, ShieldCheck, User, LogOut, ChevronDown, ClipboardList, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { NotificationBell } from './NotificationBell.js';
+import { DownloadApkButton } from './DownloadApkButton.js';
 
 interface NavbarProps {
   currentView: string;
@@ -155,6 +156,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
 
           {/* User Auth actions */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Android APK Download button in Navbar */}
+            <DownloadApkButton variant="navbar" />
+
             {user && (
               <NotificationBell
                 role={user.role as any}
@@ -243,6 +247,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
                     )}
 
                     <div className="border-t border-slate-100 my-1"></div>
+                    <a
+                      href="/downloads/daktar-serial.apk"
+                      download="daktar-serial.apk"
+                      onClick={() => setDropdownOpen(false)}
+                      className="w-full text-left px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 font-medium"
+                    >
+                      <Download className="w-4 h-4 text-emerald-600" />
+                      {t('Download Android App', 'অ্যান্ড্রয়েড অ্যাপ ডাউনলোড')}
+                    </a>
                     <button
                       onClick={() => {
                         logout();

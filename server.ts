@@ -82,6 +82,71 @@ async function startServer() {
   }
   app.use('/uploads', express.static(uploadsDir));
 
+  // Ensure public/downloads directory exists
+  const publicDownloadsDir = path.join(process.cwd(), 'public', 'downloads');
+  if (!fs.existsSync(publicDownloadsDir)) {
+    fs.mkdirSync(publicDownloadsDir, { recursive: true });
+  }
+
+  // APK Download endpoint: supports /downloads/:filename and /api/downloads/:filename
+  const handleApkDownload = (req: express.Request, res: express.Response) => {
+    const filename = req.params.filename || 'daktar-serial.apk';
+    // Prevent directory traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).type('text/plain').send('Invalid download filename');
+    }
+
+    const possiblePaths = [
+      path.join(process.cwd(), 'public', 'downloads', filename),
+      path.join(process.cwd(), 'dist', 'downloads', filename),
+      path.join(currentDir, 'public', 'downloads', filename),
+      path.join(currentDir, 'dist', 'downloads', filename),
+      path.join(currentDir, 'downloads', filename),
+    ];
+
+    for (const filePath of possiblePaths) {
+      if (fs.existsSync(filePath)) {
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.sendFile(filePath);
+      }
+    }
+
+    return res.status(404).json({
+      success: false,
+      error: 'APK_NOT_FOUND',
+      message: 'Android APK file not found on server.',
+      filename,
+      requiredPath: 'public/downloads/daktar-serial.apk',
+      instructions: 'Please copy android/app/build/outputs/apk/debug/app-debug.apk to public/downloads/daktar-serial.apk and rebuild or upload to server.'
+    });
+  };
+
+  const handleApkHead = (req: express.Request, res: express.Response) => {
+    const filename = req.params.filename || 'daktar-serial.apk';
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).end();
+    }
+    const possiblePaths = [
+      path.join(process.cwd(), 'public', 'downloads', filename),
+      path.join(process.cwd(), 'dist', 'downloads', filename),
+      path.join(currentDir, 'public', 'downloads', filename),
+      path.join(currentDir, 'dist', 'downloads', filename),
+      path.join(currentDir, 'downloads', filename),
+    ];
+    for (const filePath of possiblePaths) {
+      if (fs.existsSync(filePath)) {
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.status(200).end();
+      }
+    }
+    return res.status(404).end();
+  };
+
+  app.get(['/downloads/:filename', '/downloads', '/api/downloads/:filename'], handleApkDownload);
+  app.head(['/downloads/:filename', '/downloads', '/api/downloads/:filename'], handleApkHead);
+
   // Health check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', service: 'Daktar Serial MVP', timestamp: new Date().toISOString() });

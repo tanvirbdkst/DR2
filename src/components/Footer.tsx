@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Clock, MapPin, Phone, ShieldAlert, FileText, Scale } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
+import { DownloadApkButton, AndroidIcon } from './DownloadApkButton.js';
 
 export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNavigate }) => {
   const { t, lang } = useAuth();
@@ -67,6 +68,9 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
               <ShieldCheck className="w-4 h-4 text-emerald-500" />
               <span>BMDC Verified Physicians Only</span>
             </div>
+            <div className="pt-1">
+              <DownloadApkButton variant="footer" />
+            </div>
           </div>
 
           <div>
@@ -77,6 +81,16 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
               <li><button onClick={() => onNavigate?.('doctors')} className="hover:text-white transition cursor-pointer text-left">{t('Search Specialist Doctors', 'বিশেষজ্ঞ ডাক্তার খুঁজুন')}</button></li>
               <li><button onClick={() => onNavigate?.('doctors')} className="hover:text-white transition cursor-pointer text-left">{t('Book Chamber Serial', 'চেম্বার সিরিয়াল বুক করুন')}</button></li>
               <li><button onClick={() => onNavigate?.('patient-dashboard')} className="hover:text-white transition cursor-pointer text-left">{t('Check Serial Status', 'সিরিয়াল স্ট্যাটাস চেক করুন')}</button></li>
+              <li>
+                <a
+                  href="/downloads/daktar-serial.apk"
+                  download="daktar-serial.apk"
+                  className="text-emerald-400 hover:text-white transition cursor-pointer text-left flex items-center gap-1.5 font-medium"
+                >
+                  <AndroidIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{t('Download Android App', 'অ্যান্ড্রয়েড অ্যাপ ডাউনলোড')}</span>
+                </a>
+              </li>
               <li><button onClick={() => onNavigate?.('emergency')} className="hover:text-rose-400 text-rose-300 transition cursor-pointer text-left flex items-center gap-1.5 font-semibold"><span>🚨 {t('Emergency & Helpline 999', 'জরুরী হেল্পলাইন ৯৯৯')}</span></button></li>
             </ul>
           </div>

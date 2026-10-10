@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext.js';
 import { Specialty, DoctorProfile } from '../types.js';
 import { District, groupDistrictsByDivision } from '../data/districts.js';
 import { getApiUrl } from '../config/api.js';
+import { DownloadApkButton } from '../components/DownloadApkButton.js';
 
 const getSpecialtyConfig = (slug: string, name?: string) => {
   const s = `${slug || ''} ${name || ''}`.toLowerCase();
@@ -200,6 +201,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
               'ডাক্তার ও চেম্বার পছন্দ করুন, তারিখ নির্বাচন করুন, নির্দিষ্ট সিরিয়াল বেছে নিন এবং সাথে সাথে নিশ্চিত অ্যাপয়েন্টমেন্ট আইডি পান।'
             )}
           </p>
+
+          {/* Prominent Android APK Download Button in Hero */}
+          <div className="pt-2 flex justify-center">
+            <DownloadApkButton variant="hero" />
+          </div>
 
           {/* Search Box Card */}
           <div className="max-w-4xl mx-auto mt-8 bg-white p-3 sm:p-4 rounded-2xl shadow-2xl border border-slate-200 text-slate-800 text-left">
@@ -561,6 +567,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
           </div>
         </section>
       )}
+
+      {/* Daktar Serial Android App Download Showcase Banner */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <DownloadApkButton variant="banner" />
+      </section>
 
     </div>
   );
