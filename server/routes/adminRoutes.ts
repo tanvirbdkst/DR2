@@ -991,4 +991,268 @@ router.post('/districts/batch', async (req, res) => {
   }
 });
 
+// 12. Site Settings (Emergency & Helpline, Privacy Policy, Terms & Conditions)
+router.get('/site-settings', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT setting_key, setting_value FROM settings');
+    const settingsMap: Record<string, string> = {};
+    for (const r of rows as any[]) {
+      settingsMap[r.setting_key] = r.setting_value;
+    }
+
+    let emergency = null;
+    if (settingsMap.emergency_helpline_config) {
+      try {
+        emergency = JSON.parse(settingsMap.emergency_helpline_config);
+      } catch {
+        // fallback
+      }
+    }
+
+    if (!emergency) {
+      emergency = {
+        hotline_number: settingsMap.hotline_phone || '09612-DAKTAR (09612-325827)',
+        national_emergency: '999',
+        ambulance_number: '199 / 01700-112233',
+        doctor_helpline: '16263',
+        blood_bank_helpline: '+880 1819-223344',
+        operating_hours: '8:00 AM – 10:00 PM (Daily)',
+        operating_hours_bn: 'সকাল ৮:০০ – রাত ১০:০০ (প্রতিদিন)',
+        address: settingsMap.address || 'Dhanmondi, Dhaka-1205, Bangladesh',
+        address_bn: 'ধানমন্ডি, ঢাকা-১২০৫, বাংলাদেশ',
+        emergency_note: settingsMap.emergency_notice || 'জরুরি ও সংকটজনক পরিস্থিতিতে অবিলম্বে নিকটস্থ জরুরি বিভাগে যোগাযোগ করুন।',
+        emergency_note_en: 'In life-threatening situations, dial 999 or visit the nearest emergency room immediately.',
+        quick_contacts: [
+          { id: '1', title: 'National Emergency Service (Police, Fire, Ambulance)', title_bn: 'জাতীয় জরুরি সেবা (পুলিশ, অ্যাম্বুলেন্স, ফায়ার)', number: '999', category: 'national' },
+          { id: '2', title: 'Government Health Hotline (Shastho Batayan)', title_bn: 'সরকারি স্বাস্থ্য বাতায়ন হেল্পলাইন', number: '16263', category: 'health' },
+          { id: '3', title: 'Daktar Serial Chamber Support', title_bn: 'ডাক্তার সিরিয়াল চেম্বার সাপোর্ট', number: '09612-325827', category: 'support' },
+          { id: '4', title: 'Dhaka Medical College Emergency', title_bn: 'ঢাকা মেডিকেল জরুরি বিভাগ', number: '+880 2-55165088', category: 'hospital' },
+          { id: '5', title: 'Central Red Crescent Blood Bank', title_bn: 'রেড ক্রিসেন্ট কেন্দ্রীয় ব্লাড ব্যাংক', number: '+880 2-9352226', category: 'blood' },
+          { id: '6', title: '24/7 Ambulance Fleet Hotline', title_bn: '২৪/৭ সার্বক্ষণিক অ্যাম্বুলেন্স সার্ভিস', number: '+880 1711-000999', category: 'ambulance' }
+        ]
+      };
+    }
+
+    res.json({
+      settings: settingsMap,
+      emergency,
+      privacy_policy: settingsMap.privacy_policy || '',
+      terms_conditions: settingsMap.terms_conditions || '',
+      hotline_phone: emergency.hotline_number || settingsMap.hotline_phone || '09612-DAKTAR (09612-325827)',
+      support_email: settingsMap.support_email || 'support@daktarserial.com',
+      address: settingsMap.address || emergency.address || 'Dhanmondi, Dhaka-1205, Bangladesh',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/site-settings', async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const { emergency, privacy_policy, terms_conditions, hotline_phone, support_email, address } = req.body;
+
+    const upsertSetting = async (key: string, value: string) => {
+      await pool.execute(
+        `INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = ?`,
+        [key, value, value]
+      );
+    };
+
+    if (emergency) {
+      await upsertSetting('emergency_helpline_config', typeof emergency === 'string' ? emergency : JSON.stringify(emergency));
+      if (emergency.hotline_number) {
+        await upsertSetting('hotline_phone', String(emergency.hotline_number));
+      }
+      if (emergency.emergency_note) {
+        await upsertSetting('emergency_notice', String(emergency.emergency_note));
+      }
+    }
+
+    if (privacy_policy !== undefined) {
+      await upsertSetting('privacy_policy', String(privacy_policy));
+    }
+
+    if (terms_conditions !== undefined) {
+      await upsertSetting('terms_conditions', String(terms_conditions));
+    }
+
+    if (hotline_phone !== undefined) {
+      await upsertSetting('hotline_phone', String(hotline_phone));
+    }
+
+    if (support_email !== undefined) {
+      await upsertSetting('support_email', String(support_email));
+    }
+
+    if (address !== undefined) {
+      await upsertSetting('address', String(address));
+    }
+
+    if (adminUser?.id) {
+      await logActivity(adminUser.id, 'UPDATE_SITE_SETTINGS', 'Admin updated Emergency Helpline, Privacy Policy or Terms');
+    }
+
+    res.json({ success: true, message: 'Site settings updated successfully' });
+  } catch (err: any) {
+    console.error('Error in PUT /api/admin/site-settings:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 13. Admin Management (Admins list, Create Admin, Update Admin, Delete Admin)
+router.get('/admins', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(`
+      SELECT id, name, email, phone, role, status, admin_role, admin_permissions, avatar_url, last_login_at, created_at
+      FROM users
+      WHERE role = 'admin'
+      ORDER BY id ASC
+    `);
+
+    res.json({ admins: rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/admins', async (req, res) => {
+  try {
+    const currentAdmin = (req as any).user;
+    const { name, email, phone, password, admin_role, admin_permissions } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const cleanPhone = String(phone || '').trim();
+
+    // Check existing email
+    const [existing] = await pool.query<RowDataPacket[]>('SELECT id FROM users WHERE LOWER(email) = ?', [trimmedEmail]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'An account with this email address already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const permissionsStr = typeof admin_permissions === 'string' ? admin_permissions : JSON.stringify(admin_permissions || ['all']);
+
+    const [insertRes] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO users (name, email, phone, password_hash, role, status, admin_role, admin_permissions)
+       VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`,
+      [String(name).trim(), trimmedEmail, cleanPhone || '+8801700000000', passwordHash, admin_role || 'Support Admin', permissionsStr]
+    );
+
+    const newAdminId = insertRes.insertId;
+
+    if (currentAdmin?.id) {
+      await logActivity(currentAdmin.id, 'CREATE_ADMIN', `Created new admin account: ${trimmedEmail} (${admin_role || 'Support Admin'})`);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'New administrator created successfully',
+      adminId: newAdminId,
+    });
+  } catch (err: any) {
+    console.error('Error creating admin:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/admins/:id', async (req, res) => {
+  try {
+    const currentAdmin = (req as any).user;
+    const { id } = req.params;
+    const { name, phone, password, admin_role, admin_permissions, status } = req.body;
+
+    const [adminRows] = await pool.query<RowDataPacket[]>('SELECT id, email FROM users WHERE id = ? AND role = "admin"', [id]);
+    if (adminRows.length === 0) {
+      return res.status(404).json({ error: 'Admin account not found' });
+    }
+    const targetAdmin = adminRows[0];
+
+    // Safeguard primary production root admin
+    if ((targetAdmin.email === 'admin@drbd.com' || targetAdmin.email === 'admin@daktarserial.com') && status === 'suspended') {
+      return res.status(400).json({ error: 'Primary Super Admin account cannot be suspended' });
+    }
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (name) {
+      updates.push('name = ?');
+      params.push(String(name).trim());
+    }
+    if (phone !== undefined) {
+      updates.push('phone = ?');
+      params.push(String(phone).trim());
+    }
+    if (admin_role) {
+      updates.push('admin_role = ?');
+      params.push(String(admin_role).trim());
+    }
+    if (admin_permissions !== undefined) {
+      updates.push('admin_permissions = ?');
+      params.push(typeof admin_permissions === 'string' ? admin_permissions : JSON.stringify(admin_permissions));
+    }
+    if (status) {
+      updates.push('status = ?');
+      params.push(status);
+    }
+    if (password && String(password).trim().length >= 6) {
+      const hash = await bcrypt.hash(String(password).trim(), 10);
+      updates.push('password_hash = ?');
+      params.push(hash);
+    }
+
+    if (updates.length > 0) {
+      params.push(id);
+      await pool.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
+
+    if (currentAdmin?.id) {
+      await logActivity(currentAdmin.id, 'UPDATE_ADMIN', `Updated admin ${targetAdmin.email} (ID: ${id})`);
+    }
+
+    res.json({ success: true, message: 'Admin account updated successfully' });
+  } catch (err: any) {
+    console.error('Error updating admin:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/admins/:id', async (req, res) => {
+  try {
+    const currentAdmin = (req as any).user;
+    const { id } = req.params;
+
+    const [adminRows] = await pool.query<RowDataPacket[]>('SELECT id, email FROM users WHERE id = ? AND role = "admin"', [id]);
+    if (adminRows.length === 0) {
+      return res.status(404).json({ error: 'Admin account not found' });
+    }
+    const targetAdmin = adminRows[0];
+
+    if (targetAdmin.email === 'admin@drbd.com' || targetAdmin.email === 'admin@daktarserial.com') {
+      return res.status(400).json({ error: 'Primary Super Admin account cannot be deleted' });
+    }
+
+    if (Number(currentAdmin?.id) === Number(id)) {
+      return res.status(400).json({ error: 'Cannot delete your own admin account while active' });
+    }
+
+    await pool.execute('DELETE FROM users WHERE id = ?', [id]);
+
+    if (currentAdmin?.id) {
+      await logActivity(currentAdmin.id, 'DELETE_ADMIN', `Deleted admin account: ${targetAdmin.email}`);
+    }
+
+    res.json({ success: true, message: 'Admin account deleted successfully' });
+  } catch (err: any) {
+    console.error('Error deleting admin:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

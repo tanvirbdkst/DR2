@@ -13,6 +13,8 @@ import { PatientDashboardPage } from './pages/PatientDashboardPage.js';
 import { DoctorDashboardPage } from './pages/DoctorDashboardPage.js';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.js';
 import { CompounderDashboardPage } from './pages/CompounderDashboardPage.js';
+import { EmergencyHelplinePage } from './pages/EmergencyHelplinePage.js';
+import { PolicyPage } from './pages/PolicyPage.js';
 import { setupBackButtonHandler } from './services/capacitorService.js';
 import { initializePushNotifications } from './services/notificationService.js';
 
@@ -36,6 +38,9 @@ function parseRouteFromUrl(): { view: string; doctorSlugOrId: string | null } {
   const pathLower = path.toLowerCase();
   const hashLower = hash.toLowerCase();
 
+  if (pathLower.includes('/emergency') || hashLower.includes('emergency')) return { view: 'emergency', doctorSlugOrId: null };
+  if (pathLower.includes('/privacy') || hashLower.includes('privacy')) return { view: 'privacy', doctorSlugOrId: null };
+  if (pathLower.includes('/terms') || hashLower.includes('terms')) return { view: 'terms', doctorSlugOrId: null };
   if (pathLower.includes('/admin') || hashLower.includes('admin')) return { view: 'admin-dashboard', doctorSlugOrId: null };
   if (pathLower.includes('/compounder') || hashLower.includes('compounder')) return { view: 'compounder-dashboard', doctorSlugOrId: null };
   if (pathLower.includes('/doctor-dashboard') || hashLower.includes('doctor-dashboard')) return { view: 'doctor-dashboard', doctorSlugOrId: null };
@@ -255,8 +260,19 @@ function MainApp() {
           <AdminDashboardPage onNavigate={handleNavigate} />
         )}
 
+        {currentView === 'emergency' && (
+          <EmergencyHelplinePage onNavigate={handleNavigate} />
+        )}
+
+        {(currentView === 'privacy' || currentView === 'terms') && (
+          <PolicyPage
+            initialTab={currentView === 'terms' ? 'terms' : 'privacy'}
+            onNavigate={handleNavigate}
+          />
+        )}
+
         {/* Fallback to HomePage if view is unmatched */}
-        {!['home', 'doctors', 'doctor-profile', 'booking-confirmed', 'login', 'register-patient', 'register-doctor', 'patient-dashboard', 'doctor-dashboard', 'admin-dashboard', 'compounder-dashboard'].includes(currentView) && (
+        {!['home', 'doctors', 'doctor-profile', 'booking-confirmed', 'login', 'register-patient', 'register-doctor', 'patient-dashboard', 'doctor-dashboard', 'admin-dashboard', 'compounder-dashboard', 'emergency', 'privacy', 'terms'].includes(currentView) && (
           <HomePage
             onSearch={handleSearchFromHome}
             onSelectDoctor={handleSelectDoctor}

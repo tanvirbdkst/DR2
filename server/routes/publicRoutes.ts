@@ -445,4 +445,61 @@ router.get('/availability', async (req, res) => {
   }
 });
 
+// 6. Get Public Site Settings (Emergency & Helpline, Privacy Policy, Terms & Conditions)
+router.get('/site-settings', async (req, res) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT setting_key, setting_value FROM settings');
+    const settingsMap: Record<string, string> = {};
+    for (const r of rows as any[]) {
+      settingsMap[r.setting_key] = r.setting_value;
+    }
+
+    let emergency = null;
+    if (settingsMap.emergency_helpline_config) {
+      try {
+        emergency = JSON.parse(settingsMap.emergency_helpline_config);
+      } catch {
+        // fallback
+      }
+    }
+
+    if (!emergency) {
+      emergency = {
+        hotline_number: settingsMap.hotline_phone || '09612-DAKTAR (09612-325827)',
+        national_emergency: '999',
+        ambulance_number: '199 / 01700-112233',
+        doctor_helpline: '16263',
+        blood_bank_helpline: '+880 1819-223344',
+        operating_hours: '8:00 AM – 10:00 PM (Daily)',
+        operating_hours_bn: 'সকাল ৮:০০ – রাত ১০:০০ (প্রতিদিন)',
+        address: settingsMap.address || 'Dhanmondi, Dhaka-1205, Bangladesh',
+        address_bn: 'ধানমন্ডি, ঢাকা-১২০৫, বাংলাদেশ',
+        emergency_note: settingsMap.emergency_notice || 'জরুরি ও সংকটজনক পরিস্থিতিতে অবিলম্বে নিকটস্থ জরুরি বিভাগে যোগাযোগ করুন।',
+        emergency_note_en: 'In life-threatening situations, dial 999 or visit the nearest emergency room immediately.',
+        quick_contacts: [
+          { id: '1', title: 'National Emergency Service (Police, Fire, Ambulance)', title_bn: 'জাতীয় জরুরি সেবা (পুলিশ, অ্যাম্বুলেন্স, ফায়ার)', number: '999', category: 'national' },
+          { id: '2', title: 'Government Health Hotline (Shastho Batayan)', title_bn: 'সরকারি স্বাস্থ্য বাতায়ন হেল্পলাইন', number: '16263', category: 'health' },
+          { id: '3', title: 'Daktar Serial Chamber Support', title_bn: 'ডাক্তার সিরিয়াল চেম্বার সাপোর্ট', number: '09612-325827', category: 'support' },
+          { id: '4', title: 'Dhaka Medical College Emergency', title_bn: 'ঢাকা মেডিকেল জরুরি বিভাগ', number: '+880 2-55165088', category: 'hospital' },
+          { id: '5', title: 'Central Red Crescent Blood Bank', title_bn: 'রেড ক্রিসেন্ট কেন্দ্রীয় ব্লাড ব্যাংক', number: '+880 2-9352226', category: 'blood' },
+          { id: '6', title: '24/7 Ambulance Fleet Hotline', title_bn: '২৪/৭ সার্বক্ষণিক অ্যাম্বুলেন্স সার্ভিস', number: '+880 1711-000999', category: 'ambulance' }
+        ]
+      };
+    }
+
+    res.json({
+      site_title: settingsMap.site_title || 'Doctor Serial',
+      site_title_bn: settingsMap.site_title_bn || 'ডাক্তার সিরিয়াল',
+      hotline_phone: emergency.hotline_number || settingsMap.hotline_phone || '09612-DAKTAR (09612-325827)',
+      support_email: settingsMap.support_email || 'support@daktarserial.com',
+      address: settingsMap.address || emergency.address || 'Dhanmondi, Dhaka-1205, Bangladesh',
+      emergency,
+      privacy_policy: settingsMap.privacy_policy || '',
+      terms_conditions: settingsMap.terms_conditions || '',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

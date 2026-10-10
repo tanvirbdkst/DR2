@@ -495,4 +495,135 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// Request Password Reset (Bangladesh Phone or Email)
+router.post('/forgot-password/request', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    const input = String(identifier || '').trim();
+    if (!input) {
+      return res.status(400).json({ error: 'Please enter your registered phone number or email address.' });
+    }
+
+    const cleanDigits = input.replace(/[^0-9]/g, '');
+    const phoneWithPlus88 = cleanDigits.length >= 10 ? (cleanDigits.startsWith('880') ? `+${cleanDigits}` : `+880${cleanDigits.replace(/^0/, '')}`) : '';
+    const phone01 = cleanDigits.length >= 10 ? (cleanDigits.startsWith('880') ? cleanDigits.replace(/^88/, '') : (cleanDigits.startsWith('0') ? cleanDigits : `0${cleanDigits}`)) : '';
+
+    const [userRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, name, email, phone, role FROM users 
+       WHERE LOWER(email) = LOWER(?) OR phone = ? OR phone = ? OR phone = ?`,
+      [input, input, phoneWithPlus88, phone01]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'No registered account found with this phone number or email.' });
+    }
+
+    const targetUser = userRows[0];
+    // Generate secure 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    await pool.execute(
+      `INSERT INTO password_resets (user_id, identifier, otp_code, expires_at, used) VALUES (?, ?, ?, ?, 0)`,
+      [targetUser.id, input, otpCode, expiresAt]
+    );
+
+    await logActivity(targetUser.id, 'PASSWORD_RESET_REQUESTED', `Password reset OTP generated for ${targetUser.email}`);
+
+    // Mask phone & email for privacy display
+    const phoneStr = String(targetUser.phone || '');
+    const maskedPhone = phoneStr.length > 6 
+      ? phoneStr.slice(0, 4) + '****' + phoneStr.slice(-3)
+      : phoneStr;
+    const emailParts = String(targetUser.email || '').split('@');
+    const maskedEmail = emailParts.length === 2 && emailParts[0].length > 2
+      ? emailParts[0][0] + '***' + emailParts[0].slice(-1) + '@' + emailParts[1]
+      : targetUser.email;
+
+    res.json({
+      success: true,
+      message: 'OTP verification code has been generated.',
+      userId: targetUser.id,
+      name: targetUser.name,
+      maskedPhone,
+      maskedEmail,
+      otpCode, // Available for instant preview/testing verification
+    });
+  } catch (err: any) {
+    console.error('Error in forgot-password/request:', err);
+    res.status(500).json({ error: err.message || 'Failed to request password reset' });
+  }
+});
+
+// Verify OTP & Reset Password
+router.post('/forgot-password/verify-and-reset', async (req, res) => {
+  try {
+    const { identifier, otpCode, newPassword } = req.body;
+    const input = String(identifier || '').trim();
+    const code = String(otpCode || '').trim();
+    const pass = String(newPassword || '');
+
+    if (!input || !code || !pass) {
+      return res.status(400).json({ error: 'Phone/email, OTP code, and new password are required.' });
+    }
+
+    if (pass.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    }
+
+    const cleanDigits = input.replace(/[^0-9]/g, '');
+    const phoneWithPlus88 = cleanDigits.length >= 10 ? (cleanDigits.startsWith('880') ? `+${cleanDigits}` : `+880${cleanDigits.replace(/^0/, '')}`) : '';
+    const phone01 = cleanDigits.length >= 10 ? (cleanDigits.startsWith('880') ? cleanDigits.replace(/^88/, '') : (cleanDigits.startsWith('0') ? cleanDigits : `0${cleanDigits}`)) : '';
+
+    const [userRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, name, email, phone, role FROM users 
+       WHERE LOWER(email) = LOWER(?) OR phone = ? OR phone = ? OR phone = ?`,
+      [input, input, phoneWithPlus88, phone01]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'Account not found.' });
+    }
+    const targetUser = userRows[0];
+
+    // Find active non-expired OTP for this user
+    const [resetRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, otp_code, expires_at, used FROM password_resets
+       WHERE user_id = ? AND used = 0
+       ORDER BY id DESC LIMIT 1`,
+      [targetUser.id]
+    );
+
+    if (resetRows.length === 0) {
+      return res.status(400).json({ error: 'No active password reset request found. Please request a new OTP code.' });
+    }
+
+    const resetReq = resetRows[0];
+    if (String(resetReq.otp_code).trim() !== code) {
+      return res.status(400).json({ error: 'Invalid OTP code. Please verify the 6-digit code entered.' });
+    }
+
+    if (new Date(resetReq.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'The OTP code has expired. Please request a new one.' });
+    }
+
+    // Hash and update password
+    const newHash = await bcrypt.hash(pass, 10);
+    await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, targetUser.id]);
+
+    // Mark OTP as used
+    await pool.execute('UPDATE password_resets SET used = 1 WHERE id = ?', [resetReq.id]);
+
+    await logActivity(targetUser.id, 'PASSWORD_RESET_COMPLETED', `Password successfully reset for ${targetUser.email}`);
+
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully! You can now sign in with your new password.',
+    });
+  } catch (err: any) {
+    console.error('Error in forgot-password/verify-and-reset:', err);
+    res.status(500).json({ error: err.message || 'Failed to reset password' });
+  }
+});
+
 export default router;

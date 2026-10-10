@@ -4,7 +4,7 @@ import {
   XCircle, AlertCircle, Plus, Search, Filter, ShieldAlert, Sparkles,
   RefreshCw, LogOut, ArrowRight, Lock, Mail, KeyRound, Eye, EyeOff,
   Clock, Check, Phone, MapPin, FileText, Save, CheckSquare, Square, RotateCcw,
-  Building2, Zap
+  Building2, Zap, PhoneCall, Scale, Trash2, Edit2, UserPlus, Smartphone, ExternalLink, Shield
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { getAuthToken } from '../config/api.js';
@@ -21,7 +21,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const { user, login, logout, t, lang } = useAuth();
 
   // Dashboard Data State
-  const [activeTab, setActiveTab] = useState<'pending' | 'doctors' | 'appointments' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'hospitals' | 'logs'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'doctors' | 'appointments' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'hospitals' | 'emergency' | 'policies' | 'admins' | 'logs'>('pending');
   const [stats, setStats] = useState({
     totalDoctors: 0,
     pendingDoctors: 0,

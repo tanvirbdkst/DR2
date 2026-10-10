@@ -314,11 +314,30 @@ function ensureSqliteColumns(db: DatabaseSync) {
 
   addColumnIfMissing('users', 'doctor_id', 'INTEGER NULL');
   addColumnIfMissing('users', 'last_login_at', 'TEXT NULL');
+  addColumnIfMissing('users', 'admin_role', "TEXT NULL DEFAULT 'Super Admin'");
+  addColumnIfMissing('users', 'admin_permissions', "TEXT NULL DEFAULT '[\"all\"]'");
   addColumnIfMissing('appointments', 'booking_source', "TEXT NOT NULL DEFAULT 'online'");
   addColumnIfMissing('appointments', 'created_by', 'INTEGER NULL');
   addColumnIfMissing('appointments', 'hospital_id', 'INTEGER NULL');
   addColumnIfMissing('appointments', 'external_booking_id', 'TEXT NULL');
   addColumnIfMissing('chambers', 'hospital_id', 'INTEGER NULL');
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        identifier TEXT NOT NULL,
+        otp_code TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
+  } catch {
+    // ignore
+  }
 
   // Hospitals table columns
   addColumnIfMissing('hospitals', 'hospital_code', 'TEXT NULL');
@@ -794,12 +813,77 @@ function seedSqliteDatabase(db: DatabaseSync) {
   }
 
   // 6. Seed System Settings
+  const defaultEmergencyJson = JSON.stringify({
+    hotline_number: '09612-DAKTAR (09612-325827)',
+    national_emergency: '999',
+    ambulance_number: '199 / 01700-112233',
+    doctor_helpline: '16263',
+    blood_bank_helpline: '+880 1819-223344',
+    operating_hours: '8:00 AM – 10:00 PM (Daily)',
+    operating_hours_bn: 'সকাল ৮:০০ – রাত ১০:০০ (প্রতিদিন)',
+    address: 'Dhanmondi, Dhaka-1205, Bangladesh',
+    address_bn: 'ধানমন্ডি, ঢাকা-১২০৫, বাংলাদেশ',
+    emergency_note: 'জরুরি ও সংকটজনক পরিস্থিতিতে অবিলম্বে নিকটস্থ হাসপাতালের জরুরি বিভাগে বা জাতীয় জরুরি সেবা ৯৯৯ নম্বরে যোগাযোগ করুন।',
+    emergency_note_en: 'In life-threatening situations, immediately dial 999 or proceed directly to the nearest hospital emergency department.',
+    quick_contacts: [
+      { id: '1', title: 'National Emergency Service (Police, Fire, Ambulance)', title_bn: 'জাতীয় জরুরি সেবা (পুলিশ, অ্যাম্বুলেন্স, ফায়ার)', number: '999', category: 'national' },
+      { id: '2', title: 'Government Health Hotline (Shastho Batayan)', title_bn: 'সরকারি স্বাস্থ্য বাতায়ন হেল্পলাইন', number: '16263', category: 'health' },
+      { id: '3', title: 'Daktar Serial Chamber Support', title_bn: 'ডাক্তার সিরিয়াল চেম্বার সাপোর্ট', number: '09612-325827', category: 'support' },
+      { id: '4', title: 'Dhaka Medical College Emergency', title_bn: 'ঢাকা মেডিকেল জরুরি বিভাগ', number: '+880 2-55165088', category: 'hospital' },
+      { id: '5', title: 'Central Red Crescent Blood Bank', title_bn: 'রেড ক্রিসেন্ট কেন্দ্রীয় ব্লাড ব্যাংক', number: '+880 2-9352226', category: 'blood' },
+      { id: '6', title: '24/7 Ambulance Fleet Hotline', title_bn: '২৪/৭ সার্বক্ষণিক অ্যাম্বুলেন্স সার্ভিস', number: '+880 1711-000999', category: 'ambulance' }
+    ]
+  });
+
+  const defaultPrivacyPolicyText = `## গোপনীয়তা নীতি (Privacy Policy)
+
+**কার্যকর হওয়ার তারিখ:** জানুয়ারি ২০২৫  
+**সর্বশেষ হালনাগাদ:** অক্টোবর ২০২৬  
+
+Doctor Serial (ডাক্তার সিরিয়াল) ব্যবহারকারী রোগী, ডাক্তার ও চেম্বার স্টাফদের তথ্যের সুরক্ষায় প্রতিশ্রুতিবদ্ধ।
+
+### ১. যেসব তথ্য আমরা সংগ্রহ করি
+- **রোগীর তথ্য:** নাম, যোগাযোগের মোবাইল নম্বর, ইমেইল (ঐচ্ছিক), জেন্ডার, বয়স ও রক্তের গ্রুপ।
+- **ডাক্তারের তথ্য:** বিএমডিসি রেজিস্ট্রেশন নম্বর (BMDC Number), শিক্ষাগত যোগ্যতা, বর্তমান পদবী, চেম্বারের নাম ও ঠিকানা।
+- **অ্যাপয়েন্টমেন্ট তথ্য:** নির্বাচিত ডাক্তার, চেম্বার, সিরিয়াল নম্বর ও নির্ধারিত সাক্ষাতের সময়সূচী।
+
+### ২. তথ্যের ব্যবহার
+- চেম্বারে রোগীর সিরিয়াল সুষ্ঠুভাবে নিশ্চিতকরণ।
+- এসএমএস বা মোবাইল বার্তার মাধ্যমে সিরিয়াল ট্র্যাকিং ও আপডেট প্রদান।
+- ডাক্তার ভেরিফিকেশন ও রোগীদের নিরাপদ ও মানসম্মত চিকিৎসা সেবা নিশ্চিতকরণ।
+
+### ৩. তথ্য সুরক্ষা ও নিরাপত্তা
+আপনার সমস্ত ব্যক্তিগত ও চিকিৎসাসংক্রান্ত তথ্য উচ্চমাত্রার এনক্রিপশন ও সিকিউর ক্লাউড ডাটাবেজে সংরক্ষিত থাকে। আমরা কোনো অননুমোদিত তৃতীয় পক্ষের কাছে তথ্য বিক্রয় বা প্রচার করি না।`;
+
+  const defaultTermsConditionsText = `## ব্যবহারের শর্তাবলী (Terms & Conditions)
+
+**সর্বশেষ সংস্করণ:** অক্টোবর ২০২৬  
+
+Doctor Serial ডিজিটাল প্ল্যাটফর্মে স্বাগতম। এই প্ল্যাটফর্ম ব্যবহারের মাধ্যমে আপনি নিম্নলিখিত শর্তাবলী মেনে নিতে সম্মত হচ্ছেন:
+
+### ১. সিরিয়াল বুকিং ও সময় সচেতনতা
+- রোগীগণকে বুকিংকৃত সিরিয়ালের নির্ধারিত আনুমানিক সময়ের কমপক্ষে ২০ মিনিট পূর্বে চেম্বারে উপস্থিত হতে হবে।
+- অনাকাঙ্ক্ষিত জরুরি পরিস্থিতি বা ডাক্তারের জরুরি অস্ত্রোপচারের ক্ষেত্রে সিরিয়াল সময় কিছুটা পরিবর্তন হতে পারে।
+
+### ২. পরামর্শ ফি ও পেমেন্ট
+- প্রতিটি ডাক্তারের নিজস্ব কনসালটেশন ফি চেম্বারের নিয়ম অনুযায়ী সরাসরি চেম্বার কাউন্টারে বা অনলাইন পেমেন্ট অপশনে পরিশোধযোগ্য।
+
+### ৩. বাতিল ও পুনঃনির্ধারণ নীতি
+- সিরিয়াল শুরুর পূর্বে রোগী তার ড্যাশবোর্ড থেকে অ্যাপয়েন্টমেন্ট বাতিল বা পরিবর্তন করতে পারবেন।
+
+### ৪. দায়মুক্তি
+Doctor Serial একটি ডিজিটাল সিরিয়াল বুকিং প্ল্যাটফর্ম। সরাসরি চিকিৎসাসেবা ও প্রেসক্রিপশনের যাবতীয় দায়ভার সংশ্লিষ্ট সনদপ্রাপ্ত চিকিৎসকের উপর বর্তাবে।`;
+
   const settings = [
     ['site_title', 'Daktar Serial'],
     ['site_title_bn', 'ডাক্তার সিরিয়াল'],
-    ['hotline_phone', '+880 1700-000000'],
+    ['hotline_phone', '09612-DAKTAR (09612-325827)'],
     ['support_email', 'support@daktarserial.com'],
+    ['address', 'Dhanmondi, Dhaka-1205, Bangladesh'],
     ['emergency_notice', 'জরুরি ও সংকটজনক পরিস্থিতিতে অবিলম্বে নিকটস্থ জরুরি বিভাগে যোগাযোগ করুন।'],
+    ['emergency_helpline_config', defaultEmergencyJson],
+    ['privacy_policy', defaultPrivacyPolicyText],
+    ['terms_conditions', defaultTermsConditionsText],
     ['booking_rules', 'সিরিয়ালের আনুমানিক সময়ের কমপক্ষে ২০ মিনিট পূর্বে চেম্বারে উপস্থিত থাকুন।'],
     ['auto_approve_doctors', '0']
   ];
@@ -811,7 +895,7 @@ function seedSqliteDatabase(db: DatabaseSync) {
     `).run(k, v);
   }
 
-  console.log('[SQLite] Local database initialized with pre-seeded doctors, chambers, and schedules!');
+  console.log('[SQLite] Local database initialized with pre-seeded doctors, chambers, schedules, and site settings!');
 }
 
 /**

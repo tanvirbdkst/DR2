@@ -15,15 +15,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      {/* Top micro bar: language switcher */}
+      {/* Top micro bar: emergency hotline & language switcher */}
       <div className="bg-slate-900 text-slate-200 text-xs py-1.5 px-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-end gap-2">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
           <button
-            onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}
-            className="hover:text-emerald-400 transition font-medium cursor-pointer"
+            onClick={() => setCurrentView('emergency')}
+            className="flex items-center gap-1.5 text-[11px] text-rose-300 hover:text-white transition font-medium cursor-pointer"
           >
-            {lang === 'en' ? 'বাংলা' : 'English'}
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+            <span className="font-bold text-rose-400">🚨 {t('Emergency & Helpline:', 'জরুরি হেল্পলাইন:')}</span>
+            <span className="font-mono text-slate-300">999 • 16263</span>
           </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}
+              className="hover:text-emerald-400 transition font-medium cursor-pointer"
+            >
+              {lang === 'en' ? 'বাংলা' : 'English'}
+            </button>
+          </div>
         </div>
       </div>
 
