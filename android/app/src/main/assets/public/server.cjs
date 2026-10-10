@@ -492,7 +492,7 @@ function ensureSqliteColumns(db) {
     }
   } catch {
   }
-  const addColumnIfMissing = (table, column, definition) => {
+  const addColumnIfMissing2 = (table, column, definition) => {
     try {
       const cols = db.prepare(`PRAGMA table_info(${table})`).all();
       if (!cols.some((c) => c.name === column)) {
@@ -501,15 +501,15 @@ function ensureSqliteColumns(db) {
     } catch {
     }
   };
-  addColumnIfMissing("users", "doctor_id", "INTEGER NULL");
-  addColumnIfMissing("users", "last_login_at", "TEXT NULL");
-  addColumnIfMissing("users", "admin_role", "TEXT NULL DEFAULT 'Super Admin'");
-  addColumnIfMissing("users", "admin_permissions", `TEXT NULL DEFAULT '["all"]'`);
-  addColumnIfMissing("appointments", "booking_source", "TEXT NOT NULL DEFAULT 'online'");
-  addColumnIfMissing("appointments", "created_by", "INTEGER NULL");
-  addColumnIfMissing("appointments", "hospital_id", "INTEGER NULL");
-  addColumnIfMissing("appointments", "external_booking_id", "TEXT NULL");
-  addColumnIfMissing("chambers", "hospital_id", "INTEGER NULL");
+  addColumnIfMissing2("users", "doctor_id", "INTEGER NULL");
+  addColumnIfMissing2("users", "last_login_at", "TEXT NULL");
+  addColumnIfMissing2("users", "admin_role", "TEXT NULL DEFAULT 'Super Admin'");
+  addColumnIfMissing2("users", "admin_permissions", `TEXT NULL DEFAULT '["all"]'`);
+  addColumnIfMissing2("appointments", "booking_source", "TEXT NOT NULL DEFAULT 'online'");
+  addColumnIfMissing2("appointments", "created_by", "INTEGER NULL");
+  addColumnIfMissing2("appointments", "hospital_id", "INTEGER NULL");
+  addColumnIfMissing2("appointments", "external_booking_id", "TEXT NULL");
+  addColumnIfMissing2("chambers", "hospital_id", "INTEGER NULL");
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS password_resets (
@@ -525,26 +525,26 @@ function ensureSqliteColumns(db) {
     `);
   } catch {
   }
-  addColumnIfMissing("hospitals", "hospital_code", "TEXT NULL");
-  addColumnIfMissing("hospitals", "contact_person", "TEXT NULL");
-  addColumnIfMissing("hospitals", "email", "TEXT NOT NULL DEFAULT ''");
-  addColumnIfMissing("hospitals", "website_url", "TEXT NULL");
-  addColumnIfMissing("hospitals", "status", "TEXT NOT NULL DEFAULT 'active'");
-  addColumnIfMissing("hospitals", "integration_status", "TEXT NOT NULL DEFAULT 'pending'");
-  addColumnIfMissing("hospitals", "api_status", "TEXT NOT NULL DEFAULT 'pending'");
-  addColumnIfMissing("hospitals", "webhook_url", "TEXT NULL");
-  addColumnIfMissing("hospitals", "webhook_secret", "TEXT NULL");
-  addColumnIfMissing("hospitals", "webhook_enabled", "INTEGER NOT NULL DEFAULT 1");
-  addColumnIfMissing("hospitals", "total_hospital_serials", "INTEGER NOT NULL DEFAULT 100");
-  addColumnIfMissing("hospitals", "online_quota", "INTEGER NOT NULL DEFAULT 20");
-  addColumnIfMissing("hospitals", "notes", "TEXT NULL");
-  addColumnIfMissing("hospitals", "last_sync_at", "TEXT NULL");
-  addColumnIfMissing("hospitals", "last_api_request_at", "TEXT NULL");
-  addColumnIfMissing("hospitals", "last_webhook_at", "TEXT NULL");
-  addColumnIfMissing("hospitals", "last_error_message", "TEXT NULL");
-  addColumnIfMissing("hospitals", "successful_syncs_count", "INTEGER NOT NULL DEFAULT 0");
-  addColumnIfMissing("hospitals", "failed_syncs_count", "INTEGER NOT NULL DEFAULT 0");
-  addColumnIfMissing("hospitals", "updated_at", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "hospital_code", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "contact_person", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "email", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing2("hospitals", "website_url", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "status", "TEXT NOT NULL DEFAULT 'active'");
+  addColumnIfMissing2("hospitals", "integration_status", "TEXT NOT NULL DEFAULT 'pending'");
+  addColumnIfMissing2("hospitals", "api_status", "TEXT NOT NULL DEFAULT 'pending'");
+  addColumnIfMissing2("hospitals", "webhook_url", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "webhook_secret", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "webhook_enabled", "INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing2("hospitals", "total_hospital_serials", "INTEGER NOT NULL DEFAULT 100");
+  addColumnIfMissing2("hospitals", "online_quota", "INTEGER NOT NULL DEFAULT 20");
+  addColumnIfMissing2("hospitals", "notes", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "last_sync_at", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "last_api_request_at", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "last_webhook_at", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "last_error_message", "TEXT NULL");
+  addColumnIfMissing2("hospitals", "successful_syncs_count", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing2("hospitals", "failed_syncs_count", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing2("hospitals", "updated_at", "TEXT NULL");
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS hospital_api_credentials (
@@ -1671,6 +1671,132 @@ async function ensureNotificationTablesInDb(dbPool) {
   }
 }
 
+// server/schemaMigration.ts
+async function addColumnIfMissing(dbPool, table, column, definition) {
+  try {
+    const [rows] = await dbPool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+      [table, column]
+    );
+    if (!rows || rows.length === 0) {
+      console.log(`[SchemaMigration] Adding missing column '${column}' to table '${table}'...`);
+      await dbPool.execute(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+      console.log(`[SchemaMigration] Successfully added column '${column}' to '${table}'.`);
+    }
+  } catch (err) {
+    try {
+      const [colRows] = await dbPool.query(`PRAGMA table_info(${table})`);
+      if (Array.isArray(colRows) && !colRows.some((c) => c.name === column)) {
+        await dbPool.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+        console.log(`[SchemaMigration] (SQLite) Added column '${column}' to '${table}'.`);
+      }
+    } catch (innerErr) {
+      console.warn(`[SchemaMigration] Notice on column ${table}.${column}:`, innerErr.message || err.message);
+    }
+  }
+}
+async function ensureSchemaInDatabase(dbPool) {
+  try {
+    console.log("[SchemaMigration] Verifying and updating database schema...");
+    await addColumnIfMissing(dbPool, "users", "admin_role", "VARCHAR(50) NULL DEFAULT 'Super Admin'");
+    await addColumnIfMissing(dbPool, "users", "admin_permissions", "TEXT NULL");
+    await addColumnIfMissing(dbPool, "users", "doctor_id", "INT NULL");
+    await addColumnIfMissing(dbPool, "users", "last_login_at", "DATETIME NULL");
+    await addColumnIfMissing(dbPool, "users", "avatar_url", "TEXT NULL");
+    try {
+      await dbPool.execute(`UPDATE users SET admin_role = 'Super Admin' WHERE role = 'admin' AND (admin_role IS NULL OR admin_role = '')`);
+      await dbPool.execute(`UPDATE users SET admin_permissions = '["all"]' WHERE role = 'admin' AND (admin_permissions IS NULL OR admin_permissions = '')`);
+    } catch {
+    }
+    try {
+      await dbPool.execute(`
+        CREATE TABLE IF NOT EXISTS settings (
+          setting_key VARCHAR(191) PRIMARY KEY,
+          setting_value LONGTEXT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+    } catch {
+      try {
+        await dbPool.execute(`
+          CREATE TABLE IF NOT EXISTS settings (
+            setting_key TEXT PRIMARY KEY,
+            setting_value TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+          );
+        `);
+      } catch {
+      }
+    }
+    try {
+      await dbPool.execute(`
+        CREATE TABLE IF NOT EXISTS password_resets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          identifier VARCHAR(191) NOT NULL,
+          otp_code VARCHAR(10) NOT NULL,
+          expires_at DATETIME NOT NULL,
+          used TINYINT(1) NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_pw_reset_user (user_id),
+          INDEX idx_pw_reset_ident (identifier)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+    } catch {
+      try {
+        await dbPool.execute(`
+          CREATE TABLE IF NOT EXISTS password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            identifier TEXT NOT NULL,
+            otp_code TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            used INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+          );
+        `);
+      } catch {
+      }
+    }
+    try {
+      await dbPool.execute(`
+        CREATE TABLE IF NOT EXISTS activity_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NULL,
+          action VARCHAR(100) NOT NULL,
+          details TEXT NULL,
+          ip_address VARCHAR(45) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+    } catch {
+      try {
+        await dbPool.execute(`
+          CREATE TABLE IF NOT EXISTS activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NULL,
+            action TEXT NOT NULL,
+            details TEXT NULL,
+            ip_address TEXT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+          );
+        `);
+      } catch {
+      }
+    }
+    await addColumnIfMissing(dbPool, "appointments", "booking_source", "VARCHAR(50) NOT NULL DEFAULT 'online'");
+    await addColumnIfMissing(dbPool, "appointments", "created_by", "INT NULL");
+    await addColumnIfMissing(dbPool, "appointments", "hospital_id", "INT NULL");
+    await addColumnIfMissing(dbPool, "appointments", "external_booking_id", "VARCHAR(100) NULL");
+    await addColumnIfMissing(dbPool, "chambers", "hospital_id", "INT NULL");
+    console.log("[SchemaMigration] Database schema verification completed successfully.");
+  } catch (err) {
+    console.warn("[SchemaMigration] Notice during schema verification:", err.message);
+  }
+}
+
 // server/db.ts
 import_dotenv.default.config();
 var dbHost = process.env.DB_HOST || "localhost";
@@ -1754,6 +1880,7 @@ async function initDatabase() {
     isMysqlActive = true;
     console.log(`[MySQL] Successfully connected to database: ${dbName} on ${dbHost}:${dbPort}`);
     connection.release();
+    await ensureSchemaInDatabase(mysqlPool);
     await ensureDistrictsTableInDb(mysqlPool);
     await ensureNotificationTablesInDb(mysqlPool);
   } catch (err) {
@@ -3484,12 +3611,44 @@ router2.post("/live-queue/emergency-insert", async (req, res) => {
 });
 router2.get("/admins", async (req, res) => {
   try {
-    const [rows] = await db_default.query(`
-      SELECT id, name, email, phone, role, status, admin_role, admin_permissions, avatar_url, last_login_at, created_at
-      FROM users
-      WHERE role = 'admin'
-      ORDER BY id ASC
-    `);
+    let rows = [];
+    try {
+      const [result] = await db_default.query(`
+        SELECT id, name, email, phone, role, status, admin_role, admin_permissions, avatar_url, last_login_at, created_at
+        FROM users
+        WHERE role = 'admin'
+        ORDER BY id ASC
+      `);
+      rows = result;
+    } catch (queryErr) {
+      if (queryErr.message && (queryErr.message.includes("admin_role") || queryErr.message.includes("Unknown column"))) {
+        console.warn("[AdminRoutes] 'admin_role' column missing in users table, triggering auto-migration...");
+        await ensureSchemaInDatabase(db_default);
+        try {
+          const [retryResult] = await db_default.query(`
+            SELECT id, name, email, phone, role, status, admin_role, admin_permissions, avatar_url, last_login_at, created_at
+            FROM users
+            WHERE role = 'admin'
+            ORDER BY id ASC
+          `);
+          rows = retryResult;
+        } catch {
+          const [fallbackRows] = await db_default.query(`
+            SELECT id, name, email, phone, role, status, avatar_url, created_at
+            FROM users
+            WHERE role = 'admin'
+            ORDER BY id ASC
+          `);
+          rows = fallbackRows.map((r) => ({
+            ...r,
+            admin_role: "Super Admin",
+            admin_permissions: '["all"]'
+          }));
+        }
+      } else {
+        throw queryErr;
+      }
+    }
     res.json({ admins: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3510,11 +3669,37 @@ router2.post("/admins", async (req, res) => {
     }
     const passwordHash = await import_bcryptjs3.default.hash(password, 10);
     const permissionsStr = typeof admin_permissions === "string" ? admin_permissions : JSON.stringify(admin_permissions || ["all"]);
-    const [insertRes] = await db_default.execute(
-      `INSERT INTO users (name, email, phone, password_hash, role, status, admin_role, admin_permissions)
-       VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`,
-      [String(name).trim(), trimmedEmail, cleanPhone || "+8801700000000", passwordHash, admin_role || "Support Admin", permissionsStr]
-    );
+    let insertRes;
+    try {
+      const [res2] = await db_default.execute(
+        `INSERT INTO users (name, email, phone, password_hash, role, status, admin_role, admin_permissions)
+         VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`,
+        [String(name).trim(), trimmedEmail, cleanPhone || "+8801700000000", passwordHash, admin_role || "Support Admin", permissionsStr]
+      );
+      insertRes = res2;
+    } catch (insertErr) {
+      if (insertErr.message && (insertErr.message.includes("admin_role") || insertErr.message.includes("Unknown column"))) {
+        console.warn("[AdminRoutes] 'admin_role' column missing in users table, triggering auto-migration...");
+        await ensureSchemaInDatabase(db_default);
+        try {
+          const [retryRes] = await db_default.execute(
+            `INSERT INTO users (name, email, phone, password_hash, role, status, admin_role, admin_permissions)
+             VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`,
+            [String(name).trim(), trimmedEmail, cleanPhone || "+8801700000000", passwordHash, admin_role || "Support Admin", permissionsStr]
+          );
+          insertRes = retryRes;
+        } catch {
+          const [fallbackRes] = await db_default.execute(
+            `INSERT INTO users (name, email, phone, password_hash, role, status)
+             VALUES (?, ?, ?, ?, 'admin', 'active')`,
+            [String(name).trim(), trimmedEmail, cleanPhone || "+8801700000000", passwordHash]
+          );
+          insertRes = fallbackRes;
+        }
+      } else {
+        throw insertErr;
+      }
+    }
     const newAdminId = insertRes.insertId;
     if (currentAdmin?.id) {
       await logActivity(currentAdmin.id, "CREATE_ADMIN", `Created new admin account: ${trimmedEmail} (${admin_role || "Support Admin"})`);
@@ -3571,7 +3756,42 @@ router2.put("/admins/:id", async (req, res) => {
     }
     if (updates.length > 0) {
       params.push(id);
-      await db_default.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
+      try {
+        await db_default.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
+      } catch (err) {
+        if (err.message && (err.message.includes("admin_role") || err.message.includes("Unknown column"))) {
+          await ensureSchemaInDatabase(db_default);
+          try {
+            await db_default.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
+          } catch {
+            const safeUpdates = [];
+            const safeParams = [];
+            if (name) {
+              safeUpdates.push("name = ?");
+              safeParams.push(String(name).trim());
+            }
+            if (phone !== void 0) {
+              safeUpdates.push("phone = ?");
+              safeParams.push(String(phone).trim());
+            }
+            if (status) {
+              safeUpdates.push("status = ?");
+              safeParams.push(status);
+            }
+            if (password && String(password).trim().length >= 6) {
+              const hash = await import_bcryptjs3.default.hash(String(password).trim(), 10);
+              safeUpdates.push("password_hash = ?");
+              safeParams.push(hash);
+            }
+            if (safeUpdates.length > 0) {
+              safeParams.push(id);
+              await db_default.execute(`UPDATE users SET ${safeUpdates.join(", ")} WHERE id = ?`, safeParams);
+            }
+          }
+        } else {
+          throw err;
+        }
+      }
     }
     if (currentAdmin?.id) {
       await logActivity(currentAdmin.id, "UPDATE_ADMIN", `Updated admin ${targetAdmin.email} (ID: ${id})`);

@@ -4,6 +4,7 @@ import pool, { logActivity } from '../db.js';
 import { requireRole } from '../auth.js';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { ensureDistrictsTableInDb, BANGLADESH_DISTRICTS } from '../districts.js';
+import { ensureSchemaInDatabase } from '../schemaMigration.js';
 
 const router = Router();
 
@@ -1290,12 +1291,45 @@ router.post('/live-queue/emergency-insert', async (req, res) => {
 // 13. Admin Management (Admins list, Create Admin, Update Admin, Delete Admin)
 router.get('/admins', async (req, res) => {
   try {
-    const [rows] = await pool.query<RowDataPacket[]>(`
-      SELECT id, name, email, phone, role, status, admin_role, admin_permissions, avatar_url, last_login_at, created_at
-      FROM users
-      WHERE role = 'admin'
-      ORDER BY id ASC
-    `);
+    let rows: RowDataPacket[] = [];
+    try {
+      const [result] = await pool.query<RowDataPacket[]>(`
+        SELECT id, name, email, phone, role, status, admin_role, admin_permissions, avatar_url, last_login_at, created_at
+        FROM users
+        WHERE role = 'admin'
+        ORDER BY id ASC
+      `);
+      rows = result;
+    } catch (queryErr: any) {
+      if (queryErr.message && (queryErr.message.includes('admin_role') || queryErr.message.includes('Unknown column'))) {
+        console.warn("[AdminRoutes] 'admin_role' column missing in users table, triggering auto-migration...");
+        await ensureSchemaInDatabase(pool);
+        try {
+          const [retryResult] = await pool.query<RowDataPacket[]>(`
+            SELECT id, name, email, phone, role, status, admin_role, admin_permissions, avatar_url, last_login_at, created_at
+            FROM users
+            WHERE role = 'admin'
+            ORDER BY id ASC
+          `);
+          rows = retryResult;
+        } catch {
+          // If still failing, fallback query without admin_role and provide defaults
+          const [fallbackRows] = await pool.query<RowDataPacket[]>(`
+            SELECT id, name, email, phone, role, status, avatar_url, created_at
+            FROM users
+            WHERE role = 'admin'
+            ORDER BY id ASC
+          `);
+          rows = fallbackRows.map((r: any) => ({
+            ...r,
+            admin_role: 'Super Admin',
+            admin_permissions: '["all"]',
+          })) as any;
+        }
+      } else {
+        throw queryErr;
+      }
+    }
 
     res.json({ admins: rows });
   } catch (err: any) {
@@ -1324,11 +1358,38 @@ router.post('/admins', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const permissionsStr = typeof admin_permissions === 'string' ? admin_permissions : JSON.stringify(admin_permissions || ['all']);
 
-    const [insertRes] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO users (name, email, phone, password_hash, role, status, admin_role, admin_permissions)
-       VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`,
-      [String(name).trim(), trimmedEmail, cleanPhone || '+8801700000000', passwordHash, admin_role || 'Support Admin', permissionsStr]
-    );
+    let insertRes: ResultSetHeader;
+    try {
+      const [res] = await pool.execute<ResultSetHeader>(
+        `INSERT INTO users (name, email, phone, password_hash, role, status, admin_role, admin_permissions)
+         VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`,
+        [String(name).trim(), trimmedEmail, cleanPhone || '+8801700000000', passwordHash, admin_role || 'Support Admin', permissionsStr]
+      );
+      insertRes = res;
+    } catch (insertErr: any) {
+      if (insertErr.message && (insertErr.message.includes('admin_role') || insertErr.message.includes('Unknown column'))) {
+        console.warn("[AdminRoutes] 'admin_role' column missing in users table, triggering auto-migration...");
+        await ensureSchemaInDatabase(pool);
+        try {
+          const [retryRes] = await pool.execute<ResultSetHeader>(
+            `INSERT INTO users (name, email, phone, password_hash, role, status, admin_role, admin_permissions)
+             VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)`,
+            [String(name).trim(), trimmedEmail, cleanPhone || '+8801700000000', passwordHash, admin_role || 'Support Admin', permissionsStr]
+          );
+          insertRes = retryRes;
+        } catch {
+          // If still failing, fallback to inserting without admin_role
+          const [fallbackRes] = await pool.execute<ResultSetHeader>(
+            `INSERT INTO users (name, email, phone, password_hash, role, status)
+             VALUES (?, ?, ?, ?, 'admin', 'active')`,
+            [String(name).trim(), trimmedEmail, cleanPhone || '+8801700000000', passwordHash]
+          );
+          insertRes = fallbackRes;
+        }
+      } else {
+        throw insertErr;
+      }
+    }
 
     const newAdminId = insertRes.insertId;
 
@@ -1395,7 +1456,34 @@ router.put('/admins/:id', async (req, res) => {
 
     if (updates.length > 0) {
       params.push(id);
-      await pool.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+      try {
+        await pool.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+      } catch (err: any) {
+        if (err.message && (err.message.includes('admin_role') || err.message.includes('Unknown column'))) {
+          await ensureSchemaInDatabase(pool);
+          try {
+            await pool.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+          } catch {
+            // Filter out admin_role and admin_permissions if update failed
+            const safeUpdates: string[] = [];
+            const safeParams: any[] = [];
+            if (name) { safeUpdates.push('name = ?'); safeParams.push(String(name).trim()); }
+            if (phone !== undefined) { safeUpdates.push('phone = ?'); safeParams.push(String(phone).trim()); }
+            if (status) { safeUpdates.push('status = ?'); safeParams.push(status); }
+            if (password && String(password).trim().length >= 6) {
+              const hash = await bcrypt.hash(String(password).trim(), 10);
+              safeUpdates.push('password_hash = ?');
+              safeParams.push(hash);
+            }
+            if (safeUpdates.length > 0) {
+              safeParams.push(id);
+              await pool.execute(`UPDATE users SET ${safeUpdates.join(', ')} WHERE id = ?`, safeParams);
+            }
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     if (currentAdmin?.id) {

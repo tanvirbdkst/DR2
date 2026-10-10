@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { SqlitePoolWrapper } from './sqliteAdapter.js';
 import { ensureDistrictsTableInDb } from './districts.js';
 import { ensureNotificationTablesInDb } from './services/notificationService.js';
+import { ensureSchemaInDatabase } from './schemaMigration.js';
 
 dotenv.config();
 
@@ -104,6 +105,8 @@ export async function initDatabase(): Promise<void> {
     isMysqlActive = true;
     console.log(`[MySQL] Successfully connected to database: ${dbName} on ${dbHost}:${dbPort}`);
     connection.release();
+    // Ensure all required tables and columns (admin_role, admin_permissions, settings, etc.) exist in MySQL
+    await ensureSchemaInDatabase(mysqlPool);
     // Ensure districts table exists and has 64 districts in MySQL
     await ensureDistrictsTableInDb(mysqlPool);
     // Ensure notifications and fcm_tokens tables exist in MySQL
