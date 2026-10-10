@@ -1033,11 +1033,33 @@ router.get('/site-settings', async (req, res) => {
       };
     }
 
+    let doctorRegistration = null;
+    if (settingsMap.doctor_registration_config) {
+      try {
+        doctorRegistration = JSON.parse(settingsMap.doctor_registration_config);
+      } catch {
+        // fallback
+      }
+    }
+    if (!doctorRegistration) {
+      doctorRegistration = {
+        allow_public_registration: true,
+        require_bmdc_verification: true,
+        auto_approve: false,
+        default_max_serials: 30,
+        registration_fee_bdt: 0,
+        guidelines_bn: 'বিএমডিসি (BMDC) রেজিস্ট্রেশন নম্বর ও সনদ যাচাইয়ের পর ডাক্তার প্রোফাইল প্ল্যাটফর্মে সক্রিয় করা হবে।',
+        guidelines_en: 'Doctor profiles will be activated after strict BMDC medical license verification and authentication.',
+        support_contact: '09612-325827 (Ext 2)'
+      };
+    }
+
     res.json({
       settings: settingsMap,
       emergency,
       privacy_policy: settingsMap.privacy_policy || '',
       terms_conditions: settingsMap.terms_conditions || '',
+      doctor_registration: doctorRegistration,
       hotline_phone: emergency.hotline_number || settingsMap.hotline_phone || '09612-DAKTAR (09612-325827)',
       support_email: settingsMap.support_email || 'support@daktarserial.com',
       address: settingsMap.address || emergency.address || 'Dhanmondi, Dhaka-1205, Bangladesh',
@@ -1050,7 +1072,7 @@ router.get('/site-settings', async (req, res) => {
 router.put('/site-settings', async (req, res) => {
   try {
     const adminUser = (req as any).user;
-    const { emergency, privacy_policy, terms_conditions, hotline_phone, support_email, address } = req.body;
+    const { emergency, privacy_policy, terms_conditions, doctor_registration, hotline_phone, support_email, address } = req.body;
 
     const upsertSetting = async (key: string, value: string) => {
       await pool.execute(
@@ -1078,6 +1100,10 @@ router.put('/site-settings', async (req, res) => {
       await upsertSetting('terms_conditions', String(terms_conditions));
     }
 
+    if (doctor_registration !== undefined) {
+      await upsertSetting('doctor_registration_config', typeof doctor_registration === 'string' ? doctor_registration : JSON.stringify(doctor_registration));
+    }
+
     if (hotline_phone !== undefined) {
       await upsertSetting('hotline_phone', String(hotline_phone));
     }
@@ -1091,12 +1117,172 @@ router.put('/site-settings', async (req, res) => {
     }
 
     if (adminUser?.id) {
-      await logActivity(adminUser.id, 'UPDATE_SITE_SETTINGS', 'Admin updated Emergency Helpline, Privacy Policy or Terms');
+      await logActivity(adminUser.id, 'UPDATE_SITE_SETTINGS', 'Admin updated Emergency Helpline, Policies, or Registration Settings');
     }
 
     res.json({ success: true, message: 'Site settings updated successfully' });
   } catch (err: any) {
     console.error('Error in PUT /api/admin/site-settings:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 12.1 Live Queue & Serial Management
+router.get('/live-queue', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const requestedDate = (req.query.date as string) || today;
+    const doctorId = req.query.doctorId ? Number(req.query.doctorId) : null;
+
+    // Get active doctors
+    const [doctors] = await pool.query<RowDataPacket[]>(`
+      SELECT d.id, d.title, d.consultation_fee, u.name as doctor_name, u.phone as doctor_phone,
+             s.name as specialty_name, s.name_bn as specialty_name_bn
+      FROM doctors d
+      JOIN users u ON d.user_id = u.id
+      LEFT JOIN specialties s ON d.specialty_id = s.id
+      WHERE d.approval_status = 'approved'
+      ORDER BY u.name ASC
+    `);
+
+    let appointmentsQuery = `
+      SELECT a.id, a.appointment_id, a.doctor_id, a.chamber_id, a.schedule_date,
+             a.serial_number, a.appointment_time, a.patient_name, a.patient_phone,
+             a.patient_age, a.patient_gender, a.status, a.payment_status,
+             a.booking_source, a.notes, a.created_at,
+             u.name as doctor_name, c.name as chamber_name
+      FROM appointments a
+      JOIN doctors d ON a.doctor_id = d.id
+      JOIN users u ON d.user_id = u.id
+      LEFT JOIN chambers c ON a.chamber_id = c.id
+      WHERE a.schedule_date = ?
+    `;
+    const params: any[] = [requestedDate];
+
+    if (doctorId) {
+      appointmentsQuery += ` AND a.doctor_id = ?`;
+      params.push(doctorId);
+    }
+
+    appointmentsQuery += ` ORDER BY a.serial_number ASC`;
+
+    const [appointments] = await pool.query<RowDataPacket[]>(appointmentsQuery, params);
+
+    // Get current broadcast announcement
+    const [settingRows] = await pool.query<RowDataPacket[]>(`
+      SELECT setting_value FROM settings WHERE setting_key = 'live_queue_broadcast'
+    `);
+    const broadcast = settingRows.length > 0 ? settingRows[0].setting_value : '';
+
+    res.json({
+      date: requestedDate,
+      doctors,
+      appointments,
+      broadcast,
+      summary: {
+        total: appointments.length,
+        waiting: (appointments as any[]).filter(a => a.status === 'confirmed' || a.status === 'pending').length,
+        serving: (appointments as any[]).filter(a => a.status === 'serving' || a.status === 'in_progress').length,
+        completed: (appointments as any[]).filter(a => a.status === 'completed').length,
+        skipped: (appointments as any[]).filter(a => a.status === 'skipped').length,
+        cancelled: (appointments as any[]).filter(a => a.status === 'cancelled').length,
+        emergency: (appointments as any[]).filter(a => a.booking_source === 'emergency' || (a.notes && a.notes.includes('EMERGENCY'))).length,
+      }
+    });
+  } catch (err: any) {
+    console.error('Error fetching live queue:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/live-queue/status', async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const { appointmentId, status } = req.body;
+    if (!appointmentId || !status) {
+      return res.status(400).json({ error: 'appointmentId and status are required' });
+    }
+
+    const [apptRows] = await pool.query<RowDataPacket[]>('SELECT * FROM appointments WHERE id = ?', [appointmentId]);
+    if (apptRows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    const appt = apptRows[0];
+
+    await pool.execute('UPDATE appointments SET status = ? WHERE id = ?', [status, appointmentId]);
+
+    if (adminUser?.id) {
+      await logActivity(adminUser.id, 'QUEUE_STATUS_CHANGE', `Updated Serial #${appt.serial_number} for doctor ID ${appt.doctor_id} to status: ${status}`);
+    }
+
+    res.json({ success: true, message: `Serial #${appt.serial_number} status updated to ${status}` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/live-queue/broadcast', async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const { message } = req.body;
+    await pool.execute(
+      `INSERT INTO settings (setting_key, setting_value) VALUES ('live_queue_broadcast', ?)
+       ON DUPLICATE KEY UPDATE setting_value = ?`,
+      [String(message || ''), String(message || '')]
+    );
+
+    if (adminUser?.id) {
+      await logActivity(adminUser.id, 'QUEUE_BROADCAST', `Updated live queue delay / announcement notice`);
+    }
+
+    res.json({ success: true, broadcast: message });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/live-queue/emergency-insert', async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const { doctorId, chamberId, patientName, patientPhone, patientAge, patientGender, reason } = req.body;
+
+    if (!doctorId || !patientName || !patientPhone) {
+      return res.status(400).json({ error: 'doctorId, patientName, and patientPhone are required' });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const [maxRows] = await pool.query<RowDataPacket[]>(`
+      SELECT MAX(serial_number) as max_serial FROM appointments WHERE doctor_id = ? AND schedule_date = ?
+    `, [doctorId, today]);
+    const nextSerial = ((maxRows[0]?.max_serial as number) || 0) + 1;
+
+    const appointmentId = `EMERG-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+
+    await pool.execute(
+      `INSERT INTO appointments (
+        appointment_id, doctor_id, chamber_id, schedule_date, serial_number,
+        appointment_time, patient_name, patient_phone, patient_age, patient_gender,
+        status, payment_status, booking_source, notes
+      ) VALUES (?, ?, ?, ?, ?, 'URGENT/EMERGENCY', ?, ?, ?, ?, 'serving', 'unpaid', 'emergency', ?)`,
+      [
+        appointmentId, doctorId, chamberId || null, today, nextSerial,
+        patientName, patientPhone, patientAge || 30, patientGender || 'other',
+        `EMERGENCY WALK-IN: ${reason || 'Immediate care authorized by Admin'}`
+      ]
+    );
+
+    if (adminUser?.id) {
+      await logActivity(adminUser.id, 'EMERGENCY_SERIAL_INSERT', `Inserted emergency patient ${patientName} as serial #${nextSerial}`);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Emergency patient fast-tracked at Serial #${nextSerial}`,
+      appointmentId,
+      serialNumber: nextSerial
+    });
+  } catch (err: any) {
+    console.error('Error inserting emergency serial:', err);
     res.status(500).json({ error: err.message });
   }
 });

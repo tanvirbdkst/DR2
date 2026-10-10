@@ -4,7 +4,8 @@ import {
   XCircle, AlertCircle, Plus, Search, Filter, ShieldAlert, Sparkles,
   RefreshCw, LogOut, ArrowRight, Lock, Mail, KeyRound, Eye, EyeOff,
   Clock, Check, Phone, MapPin, FileText, Save, CheckSquare, Square, RotateCcw,
-  Building2, Zap, PhoneCall, Scale, Trash2, Edit2, UserPlus, Smartphone, ExternalLink, Shield
+  Building2, Zap, PhoneCall, Scale, Trash2, Edit2, UserPlus, Smartphone, ExternalLink, Shield,
+  AlertTriangle, Ambulance, Droplets, Volume2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { getAuthToken } from '../config/api.js';
@@ -21,7 +22,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const { user, login, logout, t, lang } = useAuth();
 
   // Dashboard Data State
-  const [activeTab, setActiveTab] = useState<'pending' | 'doctors' | 'appointments' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'hospitals' | 'emergency' | 'policies' | 'admins' | 'logs'>('pending');
+  const [activeTab, setActiveTab] = useState<
+    'pending' | 'doctors' | 'appointments' | 'live-queue' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'hospitals' | 'emergency' | 'policies' | 'admins' | 'logs'
+  >('pending');
   const [stats, setStats] = useState({
     totalDoctors: 0,
     pendingDoctors: 0,
@@ -31,6 +34,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     todayAppointments: 0,
     totalCompounders: 0,
     totalHospitals: 0,
+    totalAdmins: 0,
   });
 
   const [pendingDoctors, setPendingDoctors] = useState<DoctorProfile[]>([]);
@@ -69,6 +73,99 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', doctorId: '' });
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Admins & Roles Management state
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [adminRoleFilter, setAdminRoleFilter] = useState('all');
+  const [showAddAdminModal, setShowAddAdminModal] = useState(false);
+  const [savingAdmin, setSavingAdmin] = useState(false);
+  const [adminForm, setAdminForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    admin_role: 'Operations Admin',
+    permissions: ['manage_doctors', 'manage_serials', 'manage_emergency', 'manage_policies'],
+  });
+  const [editingAdmin, setEditingAdmin] = useState<any | null>(null);
+  const [editAdminForm, setEditAdminForm] = useState({
+    name: '',
+    phone: '',
+    admin_role: 'Operations Admin',
+    permissions: [] as string[],
+    status: 'active',
+    password: '',
+  });
+  const [savingAdminEdit, setSavingAdminEdit] = useState(false);
+  const [adminSuccessMsg, setAdminSuccessMsg] = useState<string | null>(null);
+
+  // Emergency & Helpline Configuration state
+  const [emergencyConfig, setEmergencyConfig] = useState<any>({
+    hotline_number: '09612-DAKTAR (09612-325827)',
+    national_emergency: '999',
+    ambulance_number: '199 / 01700-112233',
+    doctor_helpline: '16263',
+    blood_bank_helpline: '+880 1819-223344',
+    operating_hours: '8:00 AM – 10:00 PM (Daily)',
+    operating_hours_bn: 'সকাল ৮:০০ – রাত ১০:০০ (প্রতিদিন)',
+    address: 'Dhanmondi, Dhaka-1205, Bangladesh',
+    address_bn: 'ধানমন্ডি, ঢাকা-১২০৫, বাংলাদেশ',
+    emergency_note: 'জরুরি ও সংকটজনক পরিস্থিতিতে অবিলম্বে নিকটস্থ জরুরি বিভাগে যোগাযোগ করুন।',
+    emergency_note_en: 'In life-threatening situations, dial 999 or visit the nearest emergency room immediately.',
+    quick_contacts: [
+      { id: '1', title: 'National Emergency Service (Police, Fire, Ambulance)', title_bn: 'জাতীয় জরুরি সেবা (পুলিশ, অ্যাম্বুলেন্স, ফায়ার)', number: '999', category: 'national' },
+      { id: '2', title: 'Government Health Hotline (Shastho Batayan)', title_bn: 'সরকারি স্বাস্থ্য বাতায়ন হেল্পলাইন', number: '16263', category: 'health' },
+      { id: '3', title: 'Daktar Serial Chamber Support', title_bn: 'ডাক্তার সিরিয়াল চেম্বার সাপোর্ট', number: '09612-325827', category: 'support' },
+      { id: '4', title: 'Dhaka Medical College Emergency', title_bn: 'ঢাকা মেডিকেল জরুরি বিভাগ', number: '+880 2-55165088', category: 'hospital' },
+      { id: '5', title: 'Central Red Crescent Blood Bank', title_bn: 'রেড ক্রিসেন্ট কেন্দ্রীয় ব্লাড ব্যাংক', number: '+880 2-9352226', category: 'blood' },
+      { id: '6', title: '24/7 Ambulance Fleet Hotline', title_bn: '২৪/৭ সার্বক্ষণিক অ্যাম্বুলেন্স সার্ভিস', number: '+880 1711-000999', category: 'ambulance' }
+    ]
+  });
+  const [savingEmergency, setSavingEmergency] = useState(false);
+  const [emergencySuccessMsg, setEmergencySuccessMsg] = useState<string | null>(null);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [newContactForm, setNewContactForm] = useState({ title: '', title_bn: '', number: '', category: 'support' });
+
+  // Policies & Governance Configuration state
+  const [policySubTab, setPolicySubTab] = useState<'privacy' | 'terms' | 'doctor_registration'>('privacy');
+  const [privacyPolicyText, setPrivacyPolicyText] = useState('');
+  const [termsConditionsText, setTermsConditionsText] = useState('');
+  const [doctorRegConfig, setDoctorRegConfig] = useState({
+    allow_public_registration: true,
+    require_bmdc_verification: true,
+    auto_approve: false,
+    default_max_serials: 30,
+    registration_fee_bdt: 0,
+    guidelines_bn: 'বিএমডিসি (BMDC) রেজিস্ট্রেশন নম্বর ও সনদ যাচাইয়ের পর ডাক্তার প্রোফাইল প্ল্যাটফর্মে সক্রিয় করা হবে।',
+    guidelines_en: 'Doctor profiles will be activated after strict BMDC medical license verification and authentication.',
+    support_contact: '09612-325827 (Ext 2)'
+  });
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [policySuccessMsg, setPolicySuccessMsg] = useState<string | null>(null);
+
+  // Live Serial & Queue Management state
+  const [queueDate, setQueueDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [queueDoctorId, setQueueDoctorId] = useState<string>('all');
+  const [queueAppointments, setQueueAppointments] = useState<any[]>([]);
+  const [queueDoctors, setQueueDoctors] = useState<any[]>([]);
+  const [queueSummary, setQueueSummary] = useState<any>({ total: 0, waiting: 0, serving: 0, completed: 0, skipped: 0, emergency: 0 });
+  const [queueBroadcast, setQueueBroadcast] = useState('');
+  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastInput, setBroadcastInput] = useState('');
+  const [savingBroadcast, setSavingBroadcast] = useState(false);
+  const [showEmergencyInsertModal, setShowEmergencyInsertModal] = useState(false);
+  const [emergencyInsertForm, setEmergencyInsertForm] = useState({
+    doctorId: '',
+    chamberId: '',
+    patientName: '',
+    patientPhone: '',
+    patientAge: '32',
+    patientGender: 'male',
+    reason: 'Emergency walk-in requiring urgent doctor consultation'
+  });
+  const [savingEmergencyInsert, setSavingEmergencyInsert] = useState(false);
+  const [queueActionMsg, setQueueActionMsg] = useState<string | null>(null);
+
   // Filters
   const [doctorSearch, setDoctorSearch] = useState('');
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'all' | 'approved' | 'pending' | 'suspended' | 'rejected'>('all');
@@ -97,7 +194,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       if (token) authHeaders['Authorization'] = `Bearer ${token}`;
       const opts: RequestInit = { headers: authHeaders, credentials: 'include' };
 
-      const [statsRes, pendingRes, docsRes, patientsRes, specRes, apptsRes, compRes, availDocsRes, distRes, hospRes] = await Promise.all([
+      const [
+        statsRes, pendingRes, docsRes, patientsRes, specRes,
+        apptsRes, compRes, availDocsRes, distRes, hospRes,
+        adminsRes, settingsRes
+      ] = await Promise.all([
         fetch('/api/admin/stats', opts),
         fetch('/api/admin/doctors/pending', opts),
         fetch('/api/admin/doctors', opts),
@@ -108,6 +209,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         fetch('/api/admin/compounders/available-doctors', opts).catch(() => null),
         fetch('/api/admin/districts', opts).catch(() => null),
         fetch('/api/admin/hospitals', opts).catch(() => null),
+        fetch('/api/admin/admins', opts).catch(() => null),
+        fetch('/api/admin/site-settings', opts).catch(() => null),
       ]);
 
       if (statsRes.ok) {
@@ -166,6 +269,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       if (availDocsRes && availDocsRes.ok) {
         const adData = await availDocsRes.json();
         setAssignableDoctors(adData.doctors || []);
+      }
+
+      if (adminsRes && adminsRes.ok) {
+        const aData = await adminsRes.json();
+        setAdmins(aData.admins || []);
+        setStats((prev) => ({ ...prev, totalAdmins: aData.admins?.length || 0 }));
+      }
+
+      if (settingsRes && settingsRes.ok) {
+        const stData = await settingsRes.json();
+        if (stData.emergency) setEmergencyConfig(stData.emergency);
+        if (stData.privacy_policy) setPrivacyPolicyText(stData.privacy_policy);
+        if (stData.terms_conditions) setTermsConditionsText(stData.terms_conditions);
+        if (stData.doctor_registration) setDoctorRegConfig(stData.doctor_registration);
       }
 
       if (distRes && distRes.ok) {
@@ -231,6 +348,304 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       loadAdminData();
     }
   }, [user, loadAdminData]);
+
+  // Live Queue Fetcher
+  const fetchLiveQueue = useCallback(async (dateParam?: string, docParam?: string) => {
+    try {
+      setLoadingQueue(true);
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const d = dateParam !== undefined ? dateParam : queueDate;
+      const doc = docParam !== undefined ? docParam : queueDoctorId;
+      const url = `/api/admin/live-queue?date=${d}${doc && doc !== 'all' ? `&doctorId=${doc}` : ''}`;
+      const res = await fetch(url, { headers, credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setQueueAppointments(data.appointments || []);
+        setQueueDoctors(data.doctors || []);
+        setQueueSummary(data.summary || {});
+        setQueueBroadcast(data.broadcast || '');
+      }
+    } catch (err) {
+      console.error('Failed to fetch live queue:', err);
+    } finally {
+      setLoadingQueue(false);
+    }
+  }, [queueDate, queueDoctorId]);
+
+  useEffect(() => {
+    if (activeTab === 'live-queue') {
+      fetchLiveQueue();
+    }
+  }, [activeTab, fetchLiveQueue]);
+
+  // Admin CRUD handlers
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminForm.name || !adminForm.email || !adminForm.password) {
+      setActionError('Name, email, and password are required.');
+      return;
+    }
+    setSavingAdmin(true);
+    setActionError(null);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/admin/admins', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(adminForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create admin');
+
+      setAdminSuccessMsg('New administrator account created successfully!');
+      setShowAddAdminModal(false);
+      setAdminForm({
+        name: '',
+        email: '',
+        phone: '',
+        password: '',
+        admin_role: 'Operations Admin',
+        permissions: ['manage_doctors', 'manage_serials', 'manage_emergency', 'manage_policies'],
+      });
+      await loadAdminData();
+    } catch (err: any) {
+      setActionError(err.message || 'Error creating administrator account.');
+    } finally {
+      setSavingAdmin(false);
+    }
+  };
+
+  const handleUpdateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAdmin) return;
+    setSavingAdminEdit(true);
+    setActionError(null);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/admin/admins/${editingAdmin.id}`, {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(editAdminForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update admin');
+
+      setAdminSuccessMsg(`Admin account "${editingAdmin.name}" updated successfully!`);
+      setEditingAdmin(null);
+      await loadAdminData();
+    } catch (err: any) {
+      setActionError(err.message || 'Error updating administrator account.');
+    } finally {
+      setSavingAdminEdit(false);
+    }
+  };
+
+  const handleDeleteAdmin = async (id: number, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove administrator "${name}"?`)) return;
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/admin/admins/${id}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete admin');
+
+      setAdminSuccessMsg(`Admin account removed.`);
+      await loadAdminData();
+    } catch (err: any) {
+      setActionError(err.message || 'Error deleting administrator account.');
+    }
+  };
+
+  // Emergency Helpline Save
+  const handleSaveEmergencyConfig = async () => {
+    setSavingEmergency(true);
+    setEmergencySuccessMsg(null);
+    setActionError(null);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ emergency: emergencyConfig }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save emergency settings');
+
+      setEmergencySuccessMsg('Emergency & Helpline configuration saved and published live!');
+    } catch (err: any) {
+      setActionError(err.message || 'Error saving emergency configuration.');
+    } finally {
+      setSavingEmergency(false);
+    }
+  };
+
+  const handleAddQuickContact = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newContactForm.title || !newContactForm.number) return;
+    const newEntry = {
+      id: String(Date.now()),
+      title: newContactForm.title.trim(),
+      title_bn: newContactForm.title_bn.trim() || newContactForm.title.trim(),
+      number: newContactForm.number.trim(),
+      category: newContactForm.category || 'support',
+    };
+    setEmergencyConfig((prev: any) => ({
+      ...prev,
+      quick_contacts: [...(prev.quick_contacts || []), newEntry],
+    }));
+    setNewContactForm({ title: '', title_bn: '', number: '', category: 'support' });
+    setShowAddContactModal(false);
+  };
+
+  const handleRemoveQuickContact = (id: string) => {
+    setEmergencyConfig((prev: any) => ({
+      ...prev,
+      quick_contacts: (prev.quick_contacts || []).filter((c: any) => c.id !== id),
+    }));
+  };
+
+  // Policy Save
+  const handleSavePolicies = async () => {
+    setSavingPolicy(true);
+    setPolicySuccessMsg(null);
+    setActionError(null);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          privacy_policy: privacyPolicyText,
+          terms_conditions: termsConditionsText,
+          doctor_registration: doctorRegConfig,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save policy');
+
+      setPolicySuccessMsg('Policies & Governance updated successfully!');
+    } catch (err: any) {
+      setActionError(err.message || 'Error saving policies.');
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  // Live Queue status updater
+  const handleUpdateSerialStatus = async (appointmentId: number, status: string) => {
+    try {
+      setQueueActionMsg(null);
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/admin/live-queue/status', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ appointmentId, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update queue status');
+
+      setQueueActionMsg(`Serial status updated to ${status}.`);
+      await fetchLiveQueue();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to update queue serial status.');
+    }
+  };
+
+  const handleSaveBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingBroadcast(true);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/admin/live-queue/broadcast', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ message: broadcastInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update broadcast notice');
+
+      setQueueBroadcast(broadcastInput);
+      setShowBroadcastModal(false);
+      setQueueActionMsg('Live queue delay / announcement notice published.');
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to publish queue announcement.');
+    } finally {
+      setSavingBroadcast(false);
+    }
+  };
+
+  const handleEmergencyInsert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emergencyInsertForm.doctorId || !emergencyInsertForm.patientName || !emergencyInsertForm.patientPhone) {
+      setActionError('Doctor, Patient Name, and Phone are required for emergency insert.');
+      return;
+    }
+    setSavingEmergencyInsert(true);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/admin/live-queue/emergency-insert', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(emergencyInsertForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to insert emergency serial');
+
+      setQueueActionMsg(data.message || 'Emergency patient fast-tracked!');
+      setShowEmergencyInsertModal(false);
+      setEmergencyInsertForm({
+        doctorId: '',
+        chamberId: '',
+        patientName: '',
+        patientPhone: '',
+        patientAge: '32',
+        patientGender: 'male',
+        reason: 'Emergency walk-in requiring urgent doctor consultation',
+      });
+      await fetchLiveQueue();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to insert emergency walk-in.');
+    } finally {
+      setSavingEmergencyInsert(false);
+    }
+  };
 
   // District Search & Division Filter
   const filteredDistricts = useMemo(() => {
@@ -793,24 +1208,83 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       )}
 
       {/* Stats Counters */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8 gap-3 sm:gap-4">
         <div
           onClick={() => setActiveTab('pending')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
             activeTab === 'pending' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200 hover:border-amber-300'
           }`}
         >
           <div className="flex items-center justify-between text-slate-400 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Doctor Registration</span>
             <AlertCircle className="w-4 h-4 text-amber-500" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-amber-600">{stats.pendingDoctors}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Awaiting BMDC review</p>
+          <div className="text-2xl sm:text-3xl font-extrabold text-amber-600">{pendingDoctors.length}</div>
+          <p className="text-[10px] text-slate-500 mt-1">Pending BMDC reviews</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('live-queue')}
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
+            activeTab === 'live-queue' ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:border-indigo-300'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Live Queue</span>
+            <Zap className="w-4 h-4 text-indigo-500" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-indigo-700">
+            {queueSummary.serving || 0}
+            <span className="text-xs font-normal text-slate-400 ml-1">serving / {queueSummary.waiting || 0} wait</span>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1">Real-time queue monitor</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('emergency')}
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
+            activeTab === 'emergency' ? 'border-rose-400 ring-2 ring-rose-400/20' : 'border-slate-200 hover:border-rose-300'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Emergency & Helpline</span>
+            <PhoneCall className="w-4 h-4 text-rose-500" />
+          </div>
+          <div className="text-lg font-extrabold text-rose-600 truncate">{emergencyConfig.national_emergency || '999'}</div>
+          <p className="text-[10px] text-slate-500 mt-1">National hotline & contacts</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('policies')}
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
+            activeTab === 'policies' ? 'border-cyan-400 ring-2 ring-cyan-400/20' : 'border-slate-200 hover:border-cyan-300'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-700">Governance & Policies</span>
+            <Scale className="w-4 h-4 text-cyan-500" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">3</div>
+          <p className="text-[10px] text-slate-500 mt-1">Privacy, Terms & BMDC</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('admins')}
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
+            activeTab === 'admins' ? 'border-purple-400 ring-2 ring-purple-400/20' : 'border-slate-200 hover:border-purple-300'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Admin Accounts</span>
+            <Shield className="w-4 h-4 text-purple-500" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-purple-700">{admins.length || 1}</div>
+          <p className="text-[10px] text-slate-500 mt-1">Role-based admins</p>
         </div>
 
         <div
           onClick={() => setActiveTab('doctors')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
             activeTab === 'doctors' ? 'border-emerald-400 ring-2 ring-emerald-400/20' : 'border-slate-200 hover:border-emerald-300'
           }`}
         >
@@ -824,21 +1298,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
         <div
           onClick={() => setActiveTab('patients')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
             activeTab === 'patients' ? 'border-blue-400 ring-2 ring-blue-400/20' : 'border-slate-200 hover:border-blue-300'
           }`}
         >
           <div className="flex items-center justify-between text-slate-400 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Registered Patients</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Patients</span>
             <Users className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalPatients}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Patient user accounts</p>
+          <p className="text-[10px] text-slate-500 mt-1">Registered users</p>
         </div>
 
         <div
           onClick={() => setActiveTab('appointments')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
+          className={`bg-white p-4 rounded-2xl border transition shadow-xs cursor-pointer ${
             activeTab === 'appointments' ? 'border-purple-400 ring-2 ring-purple-400/20' : 'border-slate-200 hover:border-purple-300'
           }`}
         >
@@ -847,107 +1321,103 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             <CalendarCheck className="w-4 h-4 text-purple-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalAppointments}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Serial bookings recorded</p>
-        </div>
-
-        <div
-          onClick={() => setActiveTab('specialties')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
-            activeTab === 'specialties' ? 'border-teal-400 ring-2 ring-teal-400/20' : 'border-slate-200 hover:border-teal-300'
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700">Specialties</span>
-            <Sparkles className="w-4 h-4 text-teal-500" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{specialties.length}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Active categories</p>
-        </div>
-
-        <div
-          onClick={() => setActiveTab('compounders')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
-            activeTab === 'compounders' ? 'border-indigo-400 ring-2 ring-indigo-400/20' : 'border-slate-200 hover:border-indigo-300'
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Compounders</span>
-            <Users className="w-4 h-4 text-indigo-500" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalCompounders || compounders.length}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Chamber staff</p>
-        </div>
-
-        <div
-          onClick={() => setActiveTab('locations')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
-            activeTab === 'locations' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-emerald-300'
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">{t('Search Locations', 'সার্চ লোকেশন')}</span>
-            <MapPin className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-            {districts.filter((d) => Boolean(d.is_active)).length}
-            <span className="text-xs font-normal text-slate-400 ml-1">/ {districts.length || 64}</span>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1">{t('Active in search', 'সার্চে সক্রিয় জেলা')}</p>
-        </div>
-
-        <div
-          onClick={() => setActiveTab('hospitals')}
-          className={`bg-white p-4 sm:p-5 rounded-2xl border transition shadow-xs cursor-pointer ${
-            activeTab === 'hospitals' ? 'border-indigo-600 ring-2 ring-indigo-600/20' : 'border-slate-200 hover:border-indigo-300'
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-400 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Hospitals</span>
-            <Building2 className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{stats.totalHospitals || 0}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Integrated Partners</p>
+          <p className="text-[10px] text-slate-500 mt-1">Recorded serials</p>
         </div>
       </div>
 
       {/* Tab Navigation */}
       <div className="border-b border-slate-200 overflow-x-auto">
-        <nav className="flex space-x-6 text-xs sm:text-sm font-semibold whitespace-nowrap">
+        <nav className="flex space-x-5 text-xs sm:text-sm font-semibold whitespace-nowrap">
           <button
             onClick={() => setActiveTab('pending')}
             className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'pending'
-                ? 'border-amber-600 text-amber-700'
+                ? 'border-amber-600 text-amber-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>Pending Reviews</span>
+            <Stethoscope className="w-3.5 h-3.5 text-amber-600" />
+            <span>Doctor Registration</span>
             {pendingDoctors.length > 0 && (
               <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-bold">
                 {pendingDoctors.length}
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setActiveTab('live-queue')}
+            className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'live-queue'
+                ? 'border-indigo-600 text-indigo-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+            <span>Live Serial & Queue Management</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-100 text-indigo-700 font-bold">
+              LIVE
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('emergency')}
+            className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'emergency'
+                ? 'border-rose-600 text-rose-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <PhoneCall className="w-3.5 h-3.5 text-rose-600" />
+            <span>Emergency & Helpline</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('policies')}
+            className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'policies'
+                ? 'border-cyan-600 text-cyan-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5 text-cyan-600" />
+            <span>Policies & Governance</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('admins')}
+            className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'admins'
+                ? 'border-purple-600 text-purple-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5 text-purple-600" />
+            <span>Admins & Roles ({admins.length})</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('doctors')}
             className={`pb-3 border-b-2 transition cursor-pointer ${
               activeTab === 'doctors'
-                ? 'border-emerald-600 text-emerald-700'
+                ? 'border-emerald-600 text-emerald-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             All Doctors ({allDoctors.length})
           </button>
+
           <button
             onClick={() => setActiveTab('appointments')}
             className={`pb-3 border-b-2 transition cursor-pointer ${
               activeTab === 'appointments'
-                ? 'border-purple-600 text-purple-700'
+                ? 'border-purple-600 text-purple-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             Serials & Appointments ({appointments.length})
           </button>
+
           <button
             onClick={() => setActiveTab('hospitals')}
             className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
@@ -958,30 +1428,30 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           >
             <Building2 className="w-3.5 h-3.5 text-indigo-600" />
             <span>Hospital Integration</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold">
-              API
-            </span>
           </button>
+
           <button
             onClick={() => setActiveTab('patients')}
             className={`pb-3 border-b-2 transition cursor-pointer ${
               activeTab === 'patients'
-                ? 'border-blue-600 text-blue-700'
+                ? 'border-blue-600 text-blue-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             Patient Registry ({patients.length})
           </button>
+
           <button
             onClick={() => setActiveTab('specialties')}
             className={`pb-3 border-b-2 transition cursor-pointer ${
               activeTab === 'specialties'
-                ? 'border-teal-600 text-teal-700'
+                ? 'border-teal-600 text-teal-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             Medical Specialties ({specialties.length})
           </button>
+
           <button
             onClick={() => setActiveTab('locations')}
             className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
@@ -991,23 +1461,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             }`}
           >
             <MapPin className="w-3.5 h-3.5" />
-            <span>Search Locations ({districts.filter((d) => Boolean(d.is_active)).length}/{districts.length || 64})</span>
+            <span>Locations ({districts.filter((d) => Boolean(d.is_active)).length})</span>
           </button>
+
           <button
             onClick={() => setActiveTab('compounders')}
             className={`pb-3 border-b-2 transition cursor-pointer ${
               activeTab === 'compounders'
-                ? 'border-indigo-600 text-indigo-700'
+                ? 'border-indigo-600 text-indigo-700 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             Compounders ({compounders.length})
           </button>
+
           <button
             onClick={() => setActiveTab('logs')}
             className={`pb-3 border-b-2 transition cursor-pointer ${
               activeTab === 'logs'
-                ? 'border-slate-800 text-slate-900'
+                ? 'border-slate-800 text-slate-900 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -2012,6 +2484,1019 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       )}
 
       {/* ========================================================= */}
+      {/* TAB: LIVE SERIAL & QUEUE MANAGEMENT */}
+      {/* ========================================================= */}
+      {activeTab === 'live-queue' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Live Serial & Queue Management (রিয়েল-টাইম চেম্বার সিরিয়াল মনিটর)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Monitor real-time queues, track currently serving patients, call next serials, broadcast delay alerts, and fast-track emergency cases.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setBroadcastInput(queueBroadcast || '');
+                  setShowBroadcastModal(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+              >
+                <Volume2 className="w-3.5 h-3.5 text-amber-600" />
+                <span>Broadcast Delay Alert</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEmergencyInsertModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Fast-track Emergency Walk-In</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fetchLiveQueue()}
+                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingQueue ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Active Broadcast Announcement Banner */}
+          {queueBroadcast && (
+            <div className="bg-amber-500/10 border-2 border-amber-400/80 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-amber-900">
+              <div className="flex items-center gap-2.5">
+                <Volume2 className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <span className="font-extrabold uppercase tracking-wide text-amber-800 text-[11px] block">
+                    Active Chamber Broadcast Notice:
+                  </span>
+                  <p className="text-slate-800 font-medium">{queueBroadcast}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setBroadcastInput('');
+                  try {
+                    const token = getAuthToken();
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                    await fetch('/api/admin/live-queue/broadcast', {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({ message: '' }),
+                    });
+                    setQueueBroadcast('');
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                className="text-xs text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer shrink-0"
+              >
+                Dismiss Notice
+              </button>
+            </div>
+          )}
+
+          {queueActionMsg && (
+            <div className="p-3 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-xl border border-emerald-200 flex items-center justify-between">
+              <span>{queueActionMsg}</span>
+              <button onClick={() => setQueueActionMsg(null)} className="text-emerald-700 hover:text-emerald-900">✕</button>
+            </div>
+          )}
+
+          {/* Date & Doctor Filter Controls */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="flex items-center gap-1.5">
+                <label className="font-semibold text-slate-700">Schedule Date:</label>
+                <input
+                  type="date"
+                  value={queueDate}
+                  onChange={(e) => {
+                    setQueueDate(e.target.value);
+                    fetchLiveQueue(e.target.value, queueDoctorId);
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-hidden font-medium text-slate-800"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  setQueueDate(today);
+                  fetchLiveQueue(today, queueDoctorId);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+              >
+                Today
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+              <label className="font-semibold text-slate-700">Doctor Filter:</label>
+              <select
+                value={queueDoctorId}
+                onChange={(e) => {
+                  setQueueDoctorId(e.target.value);
+                  fetchLiveQueue(queueDate, e.target.value);
+                }}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-hidden font-medium text-slate-800 max-w-[240px]"
+              >
+                <option value="all">All Active Doctors</option>
+                {allDoctors.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.name} ({(doc as any).specialty_names || doc.specialty_name || 'General'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Real-time Status Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-indigo-50/70 p-3.5 rounded-2xl border border-indigo-100">
+              <span className="text-[10px] font-bold uppercase text-indigo-700 tracking-wider">Total Serials</span>
+              <div className="text-xl sm:text-2xl font-extrabold text-indigo-900 mt-1">{queueSummary.total || 0}</div>
+            </div>
+            <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-100">
+              <span className="text-[10px] font-bold uppercase text-emerald-700 tracking-wider">Currently Serving</span>
+              <div className="text-xl sm:text-2xl font-extrabold text-emerald-900 mt-1">{queueSummary.serving || 0}</div>
+            </div>
+            <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-100">
+              <span className="text-[10px] font-bold uppercase text-amber-700 tracking-wider">Waiting in Hall</span>
+              <div className="text-xl sm:text-2xl font-extrabold text-amber-900 mt-1">{queueSummary.waiting || 0}</div>
+            </div>
+            <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-100">
+              <span className="text-[10px] font-bold uppercase text-blue-700 tracking-wider">Completed</span>
+              <div className="text-xl sm:text-2xl font-extrabold text-blue-900 mt-1">{queueSummary.completed || 0}</div>
+            </div>
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <span className="text-[10px] font-bold uppercase text-slate-600 tracking-wider">Skipped / No Show</span>
+              <div className="text-xl sm:text-2xl font-extrabold text-slate-700 mt-1">{queueSummary.skipped || 0}</div>
+            </div>
+            <div className="bg-rose-50/70 p-3.5 rounded-2xl border border-rose-100">
+              <span className="text-[10px] font-bold uppercase text-rose-700 tracking-wider">Emergency Urgent</span>
+              <div className="text-xl sm:text-2xl font-extrabold text-rose-900 mt-1">{queueSummary.emergency || 0}</div>
+            </div>
+          </div>
+
+          {/* Serials Queue Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-slate-600" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Serial Queue Schedule ({queueAppointments.length} patients on {queueDate})
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-500">
+                Auto-updating serial board
+              </span>
+            </div>
+
+            {queueAppointments.length === 0 ? (
+              <div className="p-12 text-center text-slate-500 space-y-3">
+                <CalendarCheck className="w-12 h-12 text-slate-300 mx-auto" />
+                <p className="text-sm font-semibold text-slate-700">No patient bookings scheduled for {queueDate}.</p>
+                <p className="text-xs text-slate-400">
+                  Select another date above, or use "Fast-track Emergency Walk-In" to insert an urgent patient.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100/70 text-slate-600 font-semibold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">Serial #</th>
+                      <th className="py-3 px-4">Patient Name</th>
+                      <th className="py-3 px-4">Phone</th>
+                      <th className="py-3 px-4">Doctor & Chamber</th>
+                      <th className="py-3 px-4">Time / Source</th>
+                      <th className="py-3 px-4">Current Status</th>
+                      <th className="py-3 px-4 text-right">Queue Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {queueAppointments.map((appt) => {
+                      const isEmergency = appt.booking_source === 'emergency' || (appt.notes && appt.notes.includes('EMERGENCY'));
+                      const isServing = appt.status === 'serving' || appt.status === 'in_progress';
+                      const isCompleted = appt.status === 'completed';
+                      const isSkipped = appt.status === 'skipped';
+
+                      return (
+                        <tr
+                          key={appt.id}
+                          className={`hover:bg-slate-50 transition ${
+                            isServing ? 'bg-emerald-50/50 font-medium' : isEmergency ? 'bg-rose-50/40' : ''
+                          }`}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`w-8 h-8 rounded-xl font-extrabold flex items-center justify-center text-xs ${
+                                  isServing
+                                    ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-400/40 animate-pulse'
+                                    : isEmergency
+                                    ? 'bg-rose-600 text-white'
+                                    : isCompleted
+                                    ? 'bg-slate-200 text-slate-600'
+                                    : 'bg-indigo-100 text-indigo-800'
+                                }`}
+                              >
+                                {appt.serial_number < 10 ? `0${appt.serial_number}` : appt.serial_number}
+                              </span>
+                              {isEmergency && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-rose-100 text-rose-700 font-bold border border-rose-200">
+                                  URGENT
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900">{appt.patient_name}</div>
+                            <div className="text-[10px] text-slate-500">
+                              {appt.patient_age ? `${appt.patient_age} yrs` : ''} • {appt.patient_gender || 'Patient'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                            {appt.patient_phone}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-slate-800">{appt.doctor_name || 'Dr. Consultant'}</div>
+                            <div className="text-[10px] text-slate-400">{appt.chamber_name || 'Chamber 1'}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-slate-700 font-medium">{appt.appointment_time || 'General Slot'}</div>
+                            <span className="text-[10px] text-slate-400 capitalize">{appt.booking_source || 'online'}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            {isServing ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 flex items-center gap-1 w-fit">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                Inside Chamber (Serving)
+                              </span>
+                            ) : isCompleted ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                                Completed
+                              </span>
+                            ) : isSkipped ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600 font-bold">
+                                Skipped / No Show
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                                Waiting in Line
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isServing && !isCompleted && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateSerialStatus(appt.id, 'serving')}
+                                  title="Call into Chamber / Mark Serving"
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] cursor-pointer shadow-2xs"
+                                >
+                                  Call / Serve
+                                </button>
+                              )}
+                              {isServing && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateSerialStatus(appt.id, 'completed')}
+                                  title="Mark Consultation Completed"
+                                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] cursor-pointer shadow-2xs"
+                                >
+                                  Done
+                                </button>
+                              )}
+                              {!isCompleted && !isSkipped && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateSerialStatus(appt.id, 'skipped')}
+                                  title="Skip serial if patient is not present"
+                                  className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium text-[11px] cursor-pointer"
+                                >
+                                  Skip
+                                </button>
+                              )}
+                              {isSkipped && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateSerialStatus(appt.id, 'confirmed')}
+                                  title="Re-queue patient back into waiting list"
+                                  className="px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 font-medium text-[11px] cursor-pointer"
+                                >
+                                  Re-queue
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: EMERGENCY & HELPLINE MANAGEMENT */}
+      {/* ========================================================= */}
+      {activeTab === 'emergency' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <PhoneCall className="w-5 h-5 text-rose-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Emergency & Helpline Configuration (জরুরি সেবা ও হটলাইন ব্যবস্থাপনা)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage 24/7 emergency hotlines, ambulance services, working hours, and emergency notices. All updates instantly sync to the website footer, navbar, and public Helpline directory.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onNavigate?.('emergency')}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Preview Public Helpline Page</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEmergencyConfig}
+                disabled={savingEmergency}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-2xs disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{savingEmergency ? 'Saving Settings...' : 'Save All Helpline Settings'}</span>
+              </button>
+            </div>
+          </div>
+
+          {emergencySuccessMsg && (
+            <div className="p-3.5 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-2xl border border-emerald-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>{emergencySuccessMsg}</span>
+              </div>
+              <button onClick={() => setEmergencySuccessMsg(null)} className="text-emerald-700 hover:text-emerald-900">✕</button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Core Helpline Numbers */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
+              <div className="border-b border-slate-100 pb-3">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-rose-500" />
+                  Primary Emergency Numbers
+                </h4>
+                <p className="text-xs text-slate-400">Hotline numbers displayed in the header, footer and emergency directory.</p>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Platform Primary Helpline / Chamber Support
+                  </label>
+                  <input
+                    type="text"
+                    value={emergencyConfig.hotline_number || ''}
+                    onChange={(e) => setEmergencyConfig({ ...emergencyConfig, hotline_number: e.target.value })}
+                    placeholder="09612-DAKTAR (09612-325827)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-mono font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      National Emergency (Police/Fire)
+                    </label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.national_emergency || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, national_emergency: e.target.value })}
+                      placeholder="999"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-mono font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Ambulance Fleet Hotline
+                    </label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.ambulance_number || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, ambulance_number: e.target.value })}
+                      placeholder="199 / 01700-112233"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-mono font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Govt Health Hotline (Shastho Batayan)
+                    </label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.doctor_helpline || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, doctor_helpline: e.target.value })}
+                      placeholder="16263"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-mono font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Central Blood Bank Hotline
+                    </label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.blood_bank_helpline || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, blood_bank_helpline: e.target.value })}
+                      placeholder="+880 1819-223344"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-mono font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Operating Hours (English)</label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.operating_hours || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, operating_hours: e.target.value })}
+                      placeholder="8:00 AM – 10:00 PM (Daily)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Operating Hours (Bengali)</label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.operating_hours_bn || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, operating_hours_bn: e.target.value })}
+                      placeholder="সকাল ৮:০০ – রাত ১০:০০ (প্রতিদিন)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Head Office Address (English)</label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.address || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, address: e.target.value })}
+                      placeholder="Dhanmondi, Dhaka-1205, Bangladesh"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Head Office Address (Bengali)</label>
+                    <input
+                      type="text"
+                      value={emergencyConfig.address_bn || ''}
+                      onChange={(e) => setEmergencyConfig({ ...emergencyConfig, address_bn: e.target.value })}
+                      placeholder="ধানমন্ডি, ঢাকা-১২০৫, বাংলাদেশ"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Emergency Notice & Disclaimers */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
+              <div className="border-b border-slate-100 pb-3">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                  Emergency Notices & Public Disclaimers
+                </h4>
+                <p className="text-xs text-slate-400">Important safety guidance shown on the emergency directory page.</p>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Emergency Notice Banner (Bengali)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={emergencyConfig.emergency_note || ''}
+                    onChange={(e) => setEmergencyConfig({ ...emergencyConfig, emergency_note: e.target.value })}
+                    placeholder="জরুরি ও সংকটজনক পরিস্থিতিতে অবিলম্বে নিকটস্থ জরুরি বিভাগে যোগাযোগ করুন।"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Emergency Notice Banner (English)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={emergencyConfig.emergency_note_en || ''}
+                    onChange={(e) => setEmergencyConfig({ ...emergencyConfig, emergency_note_en: e.target.value })}
+                    placeholder="In life-threatening situations, dial 999 or visit the nearest emergency room immediately."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                  />
+                </div>
+
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px] space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Notice regarding Live Queue Emergency:
+                  </div>
+                  <p>
+                    For critical medical emergencies, patients are directed to call 999 or visit an ER. Non-critical urgent patients can be fast-tracked into doctors' active queue sessions via the Live Queue tab.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Contact Cards List */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800">
+                  Quick Dial Contacts Directory ({emergencyConfig.quick_contacts?.length || 0})
+                </h4>
+                <p className="text-xs text-slate-400">Card items shown on the public Emergency Helpline page.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddContactModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Contact Card</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(emergencyConfig.quick_contacts || []).map((c: any) => (
+                <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex items-start justify-between gap-2 text-xs">
+                  <div className="space-y-1 min-w-0">
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-200 text-slate-700">
+                      {c.category}
+                    </span>
+                    <div className="font-bold text-slate-900 truncate">{c.title}</div>
+                    <div className="text-[11px] text-slate-500 truncate">{c.title_bn}</div>
+                    <div className="font-mono font-bold text-rose-600 text-sm mt-1">{c.number}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveQuickContact(c.id)}
+                    className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition"
+                    title="Remove contact"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: POLICIES & GOVERNANCE */}
+      {/* ========================================================= */}
+      {activeTab === 'policies' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <Scale className="w-5 h-5 text-cyan-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Policies & Governance Management (নীতিমালা ও পরিচালনা সেটিংস)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Edit platform terms, user privacy policy, doctor BMDC verification rules, and application governance.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onNavigate?.(policySubTab === 'privacy' ? 'privacy' : 'terms')}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Preview Public Page</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePolicies}
+                disabled={savingPolicy}
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-2xs disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{savingPolicy ? 'Saving Changes...' : 'Save Policies & Governance'}</span>
+              </button>
+            </div>
+          </div>
+
+          {policySuccessMsg && (
+            <div className="p-3.5 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-2xl border border-emerald-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>{policySuccessMsg}</span>
+              </div>
+              <button onClick={() => setPolicySuccessMsg(null)} className="text-emerald-700 hover:text-emerald-900">✕</button>
+            </div>
+          )}
+
+          {/* Policy Section Switcher */}
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setPolicySubTab('privacy')}
+              className={`px-4 py-2 rounded-xl cursor-pointer transition ${
+                policySubTab === 'privacy'
+                  ? 'bg-cyan-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              1. Privacy Policy (প্রাইভেসি পলিসি)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPolicySubTab('terms')}
+              className={`px-4 py-2 rounded-xl cursor-pointer transition ${
+                policySubTab === 'terms'
+                  ? 'bg-cyan-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              2. Terms & Conditions (শর্তাবলী ও নিয়মাবলী)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPolicySubTab('doctor_registration')}
+              className={`px-4 py-2 rounded-xl cursor-pointer transition ${
+                policySubTab === 'doctor_registration'
+                  ? 'bg-cyan-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              3. Doctor Registration & BMDC Governance
+            </button>
+          </div>
+
+          {/* SUB-TAB 1: Privacy Policy */}
+          {policySubTab === 'privacy' && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">Privacy Policy Document Content</h4>
+                  <p className="text-xs text-slate-400">
+                    Supports rich markdown or plain text. Shown to users on the /privacy page and signup terms.
+                  </p>
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  {privacyPolicyText.length} characters
+                </span>
+              </div>
+              <textarea
+                rows={18}
+                value={privacyPolicyText}
+                onChange={(e) => setPrivacyPolicyText(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-hidden font-mono text-xs leading-relaxed text-slate-800"
+              />
+            </div>
+          )}
+
+          {/* SUB-TAB 2: Terms & Conditions */}
+          {policySubTab === 'terms' && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">Terms & Conditions Document Content</h4>
+                  <p className="text-xs text-slate-400">
+                    Terms for serial booking, cancellations, doctor appointments, and platform usage.
+                  </p>
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  {termsConditionsText.length} characters
+                </span>
+              </div>
+              <textarea
+                rows={18}
+                value={termsConditionsText}
+                onChange={(e) => setTermsConditionsText(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-hidden font-mono text-xs leading-relaxed text-slate-800"
+              />
+            </div>
+          )}
+
+          {/* SUB-TAB 3: Doctor Registration Governance */}
+          {policySubTab === 'doctor_registration' && (
+            <div className="space-y-6">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-5 shadow-xs">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">Doctor Registration & Verification Rules</h4>
+                  <p className="text-xs text-slate-400">Control who can register as a doctor and verification requirements.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(doctorRegConfig.allow_public_registration)}
+                      onChange={(e) => setDoctorRegConfig({ ...doctorRegConfig, allow_public_registration: e.target.checked })}
+                      className="mt-0.5 rounded-sm border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-800">Allow Doctor Self-Registration</div>
+                      <div className="text-[11px] text-slate-500">Public doctors can register from login/registration forms.</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(doctorRegConfig.require_bmdc_verification)}
+                      onChange={(e) => setDoctorRegConfig({ ...doctorRegConfig, require_bmdc_verification: e.target.checked })}
+                      className="mt-0.5 rounded-sm border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-800">Require BMDC License Certificate</div>
+                      <div className="text-[11px] text-slate-500">Mandate valid BMDC license number and document upload.</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(doctorRegConfig.auto_approve)}
+                      onChange={(e) => setDoctorRegConfig({ ...doctorRegConfig, auto_approve: e.target.checked })}
+                      className="mt-0.5 rounded-sm border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-800">Auto-Approve Verified Doctors</div>
+                      <div className="text-[11px] text-slate-500">If unchecked, all new doctors must wait for manual admin review.</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Default Daily Max Serials per Chamber</label>
+                    <input
+                      type="number"
+                      value={doctorRegConfig.default_max_serials || 30}
+                      onChange={(e) => setDoctorRegConfig({ ...doctorRegConfig, default_max_serials: Number(e.target.value) || 30 })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-hidden font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Doctor Verification Support Helpline</label>
+                    <input
+                      type="text"
+                      value={doctorRegConfig.support_contact || ''}
+                      onChange={(e) => setDoctorRegConfig({ ...doctorRegConfig, support_contact: e.target.value })}
+                      placeholder="09612-325827 (Ext 2)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-hidden font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Registration Guidelines & Verification Notice (Bengali)</label>
+                    <textarea
+                      rows={3}
+                      value={doctorRegConfig.guidelines_bn || ''}
+                      onChange={(e) => setDoctorRegConfig({ ...doctorRegConfig, guidelines_bn: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Registration Guidelines & Verification Notice (English)</label>
+                    <textarea
+                      rows={3}
+                      value={doctorRegConfig.guidelines_en || ''}
+                      onChange={(e) => setDoctorRegConfig({ ...doctorRegConfig, guidelines_en: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-hidden"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: ADMINS & ROLE MANAGEMENT */}
+      {/* ========================================================= */}
+      {activeTab === 'admins' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-purple-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Administrators & Role Management (অ্যাডমিন অ্যাকাউন্ট ও রোল সেটআপ)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Add new administrators, assign roles (Super Admin, Operations Admin, Support Admin, Moderator), and configure granular permissions.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddAdminModal(true)}
+              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-2xs shrink-0"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Add New Admin</span>
+            </button>
+          </div>
+
+          {adminSuccessMsg && (
+            <div className="p-3.5 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-2xl border border-emerald-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>{adminSuccessMsg}</span>
+              </div>
+              <button onClick={() => setAdminSuccessMsg(null)} className="text-emerald-700 hover:text-emerald-900">✕</button>
+            </div>
+          )}
+
+          {/* Filter Bar */}
+          <div className="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 text-xs">
+            <div className="flex items-center gap-2">
+              <Filter className="w-3.5 h-3.5 text-slate-500" />
+              <span className="font-semibold text-slate-700">Filter Role:</span>
+              {['all', 'Super Admin', 'Operations Admin', 'Support Admin', 'Moderator'].map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setAdminRoleFilter(role)}
+                  className={`px-3 py-1 rounded-lg font-medium cursor-pointer transition ${
+                    adminRoleFilter === role
+                      ? 'bg-purple-100 text-purple-800 font-bold'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {role === 'all' ? 'All Roles' : role}
+                </button>
+              ))}
+            </div>
+            <span className="text-slate-400 font-medium">
+              Total: {admins.length} administrator{admins.length === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          {/* Admins Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-semibold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-3.5 px-4">Admin Profile</th>
+                    <th className="py-3.5 px-4">Phone / Contact</th>
+                    <th className="py-3.5 px-4">Assigned Role</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Created Date</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {admins
+                    .filter((adm) => adminRoleFilter === 'all' || adm.admin_role === adminRoleFilter)
+                    .map((adm) => {
+                      const isRoot = adm.email === 'admin@drbd.com' || adm.email === 'admin@daktarserial.com';
+                      const isSelf = user?.id && Number(user.id) === Number(adm.id);
+
+                      return (
+                        <tr key={adm.id} className="hover:bg-slate-50 transition">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 font-extrabold flex items-center justify-center text-xs">
+                                {adm.name ? adm.name.charAt(0).toUpperCase() : 'A'}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                  <span>{adm.name}</span>
+                                  {isSelf && (
+                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-slate-200 text-slate-700 font-semibold">
+                                      You
+                                    </span>
+                                  )}
+                                  {isRoot && (
+                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-100 text-indigo-700 font-bold">
+                                      Root
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-500">{adm.email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">
+                            {adm.phone || '—'}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                adm.admin_role === 'Super Admin'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : adm.admin_role === 'Operations Admin'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : adm.admin_role === 'Support Admin'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              {adm.admin_role || 'Admin'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                adm.status === 'active'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {adm.status || 'active'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                            {adm.created_at ? adm.created_at.split('T')[0] : '—'}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingAdmin(adm);
+                                  setEditAdminForm({
+                                    name: adm.name || '',
+                                    phone: adm.phone || '',
+                                    admin_role: adm.admin_role || 'Operations Admin',
+                                    permissions: typeof adm.admin_permissions === 'string' ? JSON.parse(adm.admin_permissions || '[]') : (adm.admin_permissions || []),
+                                    status: adm.status || 'active',
+                                    password: '',
+                                  });
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer flex items-center gap-1"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              {!isRoot && !isSelf && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAdmin(adm.id, adm.name)}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[11px] cursor-pointer flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Remove</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* ADD SPECIALTY MODAL */}
       {/* ========================================================= */}
       {showAddSpecialtyModal && (
@@ -2253,6 +3738,530 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold cursor-pointer disabled:opacity-50"
                 >
                   {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ========================================================= */}
+      {/* MODAL: ADD NEW ADMIN */}
+      {/* ========================================================= */}
+      {showAddAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-purple-600" />
+                <h3 className="text-sm font-bold text-slate-900">Add New Administrator Account</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddAdminModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAdmin} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={adminForm.name}
+                  onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
+                  placeholder="e.g. Tanvir Ahmed"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={adminForm.email}
+                  onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                  placeholder="admin.tanvir@daktarserial.com"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Mobile Number (Bangladesh) *</label>
+                <input
+                  type="tel"
+                  required
+                  value={adminForm.phone}
+                  onChange={(e) => setAdminForm({ ...adminForm, phone: e.target.value })}
+                  placeholder="01711-223344"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-mono font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Password *</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={adminForm.password}
+                  onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                  placeholder="Minimum 6 characters"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Admin Role Assignment *</label>
+                <select
+                  value={adminForm.admin_role}
+                  onChange={(e) => setAdminForm({ ...adminForm, admin_role: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-medium"
+                >
+                  <option value="Super Admin">Super Admin (Full System Control)</option>
+                  <option value="Operations Admin">Operations Admin (Doctors, Serials, Schedules)</option>
+                  <option value="Support Admin">Support Admin (Emergency Helpline, Support)</option>
+                  <option value="Moderator">Moderator (Reviews & Audits)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1.5">Granular Permissions</label>
+                <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px]">
+                  {[
+                    { key: 'manage_doctors', label: 'Doctor Approvals' },
+                    { key: 'manage_serials', label: 'Live Queue & Serials' },
+                    { key: 'manage_emergency', label: 'Emergency & Helpline' },
+                    { key: 'manage_policies', label: 'Policies & Governance' },
+                    { key: 'manage_admins', label: 'Admin Accounts' },
+                    { key: 'manage_locations', label: 'Locations & Hospitals' },
+                  ].map((perm) => {
+                    const isChecked = adminForm.permissions.includes(perm.key);
+                    return (
+                      <label key={perm.key} className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...adminForm.permissions, perm.key]
+                              : adminForm.permissions.filter((p) => p !== perm.key);
+                            setAdminForm({ ...adminForm, permissions: next });
+                          }}
+                          className="rounded-sm border-slate-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <span className="text-slate-700 font-medium">{perm.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddAdminModal(false)}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAdmin}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  {savingAdmin ? 'Creating...' : 'Create Admin'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDIT ADMIN */}
+      {/* ========================================================= */}
+      {editingAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-purple-600" />
+                <h3 className="text-sm font-bold text-slate-900">Edit Administrator: {editingAdmin.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingAdmin(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateAdmin} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editAdminForm.name}
+                  onChange={(e) => setEditAdminForm({ ...editAdminForm, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={editAdminForm.phone}
+                  onChange={(e) => setEditAdminForm({ ...editAdminForm, phone: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Role</label>
+                <select
+                  value={editAdminForm.admin_role}
+                  onChange={(e) => setEditAdminForm({ ...editAdminForm, admin_role: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-medium"
+                >
+                  <option value="Super Admin">Super Admin</option>
+                  <option value="Operations Admin">Operations Admin</option>
+                  <option value="Support Admin">Support Admin</option>
+                  <option value="Moderator">Moderator</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                <select
+                  value={editAdminForm.status}
+                  onChange={(e) => setEditAdminForm({ ...editAdminForm, status: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-medium"
+                >
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Reset Password (leave blank to keep unchanged)</label>
+                <input
+                  type="password"
+                  value={editAdminForm.password}
+                  onChange={(e) => setEditAdminForm({ ...editAdminForm, password: e.target.value })}
+                  placeholder="New password (optional)"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingAdmin(null)}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAdminEdit}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  {savingAdminEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: BROADCAST QUEUE DELAY ALERT */}
+      {/* ========================================================= */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-amber-600" />
+                <h3 className="text-sm font-bold text-slate-900">Broadcast Delay / Chamber Alert</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBroadcastModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBroadcast} className="space-y-3.5 text-xs">
+              <p className="text-slate-500">
+                This notice will appear instantly in the Live Queue monitor and on patient booking status screens.
+              </p>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Announcement Message</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={broadcastInput}
+                  onChange={(e) => setBroadcastInput(e.target.value)}
+                  placeholder="e.g. Doctor is delayed by 20 minutes due to an emergency procedure. All serials will proceed in order."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div>
+                <span className="block font-semibold text-slate-600 mb-1 text-[11px]">Quick Message Templates:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Doctor delayed by 15 mins due to emergency procedure.',
+                    'Doctor delayed by 30 mins. Patient serials are preserved.',
+                    'Chamber session started. Next serials please get ready.',
+                    'Consultations running normally on schedule.',
+                  ].map((tpl) => (
+                    <button
+                      key={tpl}
+                      type="button"
+                      onClick={() => setBroadcastInput(tpl)}
+                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-medium cursor-pointer transition text-left"
+                    >
+                      {tpl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowBroadcastModal(false)}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingBroadcast}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  {savingBroadcast ? 'Publishing...' : 'Publish Announcement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: FAST-TRACK EMERGENCY WALK-IN */}
+      {/* ========================================================= */}
+      {showEmergencyInsertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+                <h3 className="text-sm font-bold text-slate-900">Fast-track Emergency Walk-In Patient</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmergencyInsertModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEmergencyInsert} className="space-y-3.5 text-xs">
+              <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 text-[11px] font-medium">
+                This patient will be prioritized and assigned the next active serial slot directly in today's chamber queue.
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Select Doctor *</label>
+                <select
+                  required
+                  value={emergencyInsertForm.doctorId}
+                  onChange={(e) => setEmergencyInsertForm({ ...emergencyInsertForm, doctorId: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-medium"
+                >
+                  <option value="">-- Choose active doctor --</option>
+                  {allDoctors.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.name} ({(doc as any).specialty_names || doc.specialty_name || 'General'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Patient Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={emergencyInsertForm.patientName}
+                  onChange={(e) => setEmergencyInsertForm({ ...emergencyInsertForm, patientName: e.target.value })}
+                  placeholder="e.g. Rafiqul Islam"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Mobile Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={emergencyInsertForm.patientPhone}
+                    onChange={(e) => setEmergencyInsertForm({ ...emergencyInsertForm, patientPhone: e.target.value })}
+                    placeholder="01700-112233"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Age & Gender</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={emergencyInsertForm.patientAge}
+                      onChange={(e) => setEmergencyInsertForm({ ...emergencyInsertForm, patientAge: e.target.value })}
+                      placeholder="Age"
+                      className="w-20 px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                    />
+                    <select
+                      value={emergencyInsertForm.patientGender}
+                      onChange={(e) => setEmergencyInsertForm({ ...emergencyInsertForm, patientGender: e.target.value })}
+                      className="flex-1 px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden"
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Emergency Reason / Symptoms</label>
+                <input
+                  type="text"
+                  value={emergencyInsertForm.reason}
+                  onChange={(e) => setEmergencyInsertForm({ ...emergencyInsertForm, reason: e.target.value })}
+                  placeholder="e.g. Acute severe chest pain / high trauma"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEmergencyInsertModal(false)}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEmergencyInsert}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  {savingEmergencyInsert ? 'Fast-tracking...' : 'Fast-track to Queue'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: ADD QUICK CONTACT CARD */}
+      {/* ========================================================= */}
+      {showAddContactModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">Add Quick Helpline Contact</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddContactModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddQuickContact} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Contact Title (English) *</label>
+                <input
+                  type="text"
+                  required
+                  value={newContactForm.title}
+                  onChange={(e) => setNewContactForm({ ...newContactForm, title: e.target.value })}
+                  placeholder="e.g. Kurmitola General Hospital Emergency"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Contact Title (Bengali)</label>
+                <input
+                  type="text"
+                  value={newContactForm.title_bn}
+                  onChange={(e) => setNewContactForm({ ...newContactForm, title_bn: e.target.value })}
+                  placeholder="e.g. কুর্মিটোলা জেনারেল হাসপাতাল জরুরি বিভাগ"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500 outline-hidden font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Phone / Hotline Number *</label>
+                <input
+                  type="text"
+                  required
+                  value={newContactForm.number}
+                  onChange={(e) => setNewContactForm({ ...newContactForm, number: e.target.value })}
+                  placeholder="+880 2-55067101"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500 outline-hidden font-mono font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Category</label>
+                <select
+                  value={newContactForm.category}
+                  onChange={(e) => setNewContactForm({ ...newContactForm, category: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500 outline-hidden font-medium"
+                >
+                  <option value="national">National Emergency</option>
+                  <option value="health">Health Helpline</option>
+                  <option value="hospital">Hospital Emergency</option>
+                  <option value="ambulance">Ambulance</option>
+                  <option value="blood">Blood Bank</option>
+                  <option value="support">Platform Support</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddContactModal(false)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold cursor-pointer"
+                >
+                  Add Contact
                 </button>
               </div>
             </form>
