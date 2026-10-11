@@ -157,51 +157,36 @@ export async function ensureSchemaInDatabase(dbPool: any): Promise<void> {
     // 6. Add columns to 'chambers' table
     await addColumnIfMissing(dbPool, 'chambers', 'hospital_id', 'INT NULL');
 
-    // 7. Ensure 'payments' table exists (for Paymently and MFS transactions)
+    // 7. Ensure 'payments' table exists (matches confirmed production schema pixeswpo_dr)
     try {
       await dbPool.execute(`
         CREATE TABLE IF NOT EXISTS payments (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          appointment_id VARCHAR(100) NOT NULL,
-          transaction_ref VARCHAR(100) NOT NULL UNIQUE,
-          payment_gateway VARCHAR(50) NOT NULL DEFAULT 'paymently',
-          gateway_invoice_id VARCHAR(100) NULL,
-          amount DECIMAL(10, 2) NOT NULL DEFAULT 10.00,
-          currency VARCHAR(10) NOT NULL DEFAULT 'BDT',
-          status VARCHAR(50) NOT NULL DEFAULT 'pending',
-          payment_method VARCHAR(50) NULL,
-          sender_number VARCHAR(50) NULL,
-          gateway_transaction_id VARCHAR(100) NULL,
-          payment_url TEXT NULL,
-          metadata TEXT NULL,
-          raw_response LONGTEXT NULL,
+          id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          appointment_id INT UNSIGNED NOT NULL,
+          transaction_id VARCHAR(100) NULL UNIQUE,
+          method ENUM('cash_at_chamber', 'online_payment', 'bkash', 'nagad', 'card') NOT NULL DEFAULT 'cash_at_chamber',
+          amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+          status ENUM('unpaid', 'pending', 'paid', 'failed', 'refunded') NOT NULL DEFAULT 'unpaid',
+          gateway_response TEXT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           INDEX idx_pmt_appt (appointment_id),
-          INDEX idx_pmt_tx (transaction_ref),
-          INDEX idx_pmt_invoice (gateway_invoice_id),
+          INDEX idx_pmt_tx (transaction_id),
           INDEX idx_pmt_status (status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `);
-      console.log("[SchemaMigration] Verified 'payments' table in MySQL.");
+      console.log("[SchemaMigration] Verified production 'payments' table in MySQL.");
     } catch {
       try {
         await dbPool.execute(`
           CREATE TABLE IF NOT EXISTS payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            appointment_id TEXT NOT NULL,
-            transaction_ref TEXT NOT NULL UNIQUE,
-            payment_gateway TEXT NOT NULL DEFAULT 'paymently',
-            gateway_invoice_id TEXT NULL,
-            amount NUMERIC NOT NULL DEFAULT 10.00,
-            currency TEXT NOT NULL DEFAULT 'BDT',
-            status TEXT NOT NULL DEFAULT 'pending',
-            payment_method TEXT NULL,
-            sender_number TEXT NULL,
-            gateway_transaction_id TEXT NULL,
-            payment_url TEXT NULL,
-            metadata TEXT NULL,
-            raw_response TEXT NULL,
+            appointment_id INTEGER NOT NULL,
+            transaction_id TEXT NULL UNIQUE,
+            method TEXT NOT NULL DEFAULT 'cash_at_chamber',
+            amount NUMERIC NOT NULL DEFAULT 0.00,
+            status TEXT NOT NULL DEFAULT 'unpaid',
+            gateway_response TEXT NULL,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
           );

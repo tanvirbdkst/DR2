@@ -240,21 +240,15 @@ function initSqliteSchema(db: DatabaseSync) {
 
     CREATE TABLE IF NOT EXISTS payments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      appointment_id TEXT NOT NULL,
-      transaction_ref TEXT NOT NULL UNIQUE,
-      payment_gateway TEXT NOT NULL DEFAULT 'paymently',
-      gateway_invoice_id TEXT NULL,
-      amount NUMERIC NOT NULL DEFAULT 10.00,
-      currency TEXT NOT NULL DEFAULT 'BDT',
-      status TEXT NOT NULL DEFAULT 'pending',
-      payment_method TEXT NULL,
-      sender_number TEXT NULL,
-      gateway_transaction_id TEXT NULL,
-      payment_url TEXT NULL,
-      metadata TEXT NULL,
-      raw_response TEXT NULL,
+      appointment_id INTEGER NOT NULL,
+      transaction_id TEXT NULL UNIQUE,
+      method TEXT NOT NULL DEFAULT 'cash_at_chamber',
+      amount NUMERIC NOT NULL DEFAULT 0.00,
+      status TEXT NOT NULL DEFAULT 'unpaid',
+      gateway_response TEXT NULL,
       created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS hospitals (
@@ -343,6 +337,35 @@ function ensureSqliteColumns(db: DatabaseSync) {
   addColumnIfMissing('appointments', 'transaction_ref', 'TEXT NULL');
   addColumnIfMissing('appointments', 'payment_method', 'TEXT NULL');
   addColumnIfMissing('chambers', 'hospital_id', 'INTEGER NULL');
+  // Production schema alignment for 'payments' table
+  try {
+    const pmtCols = (db.prepare("PRAGMA table_info(payments)").all() as any[]) || [];
+    const hasOldTxRef = pmtCols.some((c) => c.name === 'transaction_ref' && c.notnull === 1);
+    const hasTextAppt = pmtCols.some((c) => c.name === 'appointment_id' && c.type === 'TEXT');
+    if (hasOldTxRef || hasTextAppt) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS payments_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          appointment_id INTEGER NOT NULL,
+          transaction_id TEXT NULL UNIQUE,
+          method TEXT NOT NULL DEFAULT 'cash_at_chamber',
+          amount NUMERIC NOT NULL DEFAULT 0.00,
+          status TEXT NOT NULL DEFAULT 'unpaid',
+          gateway_response TEXT NULL,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+        );
+        DROP TABLE IF EXISTS payments;
+        ALTER TABLE payments_v2 RENAME TO payments;
+      `);
+    }
+  } catch (err: any) {
+    console.warn('[SQLite] Notice on payments table alignment:', err.message);
+  }
+  addColumnIfMissing('payments', 'transaction_id', 'TEXT NULL');
+  addColumnIfMissing('payments', 'method', "TEXT NOT NULL DEFAULT 'cash_at_chamber'");
+  addColumnIfMissing('payments', 'gateway_response', 'TEXT NULL');
 
   try {
     db.exec(`

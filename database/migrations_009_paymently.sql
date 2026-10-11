@@ -1,12 +1,11 @@
 -- ============================================================================
--- Migration 009: Paymently Payment Gateway Integration & Transaction Logging
--- Compatible with MySQL 8.0+ / MariaDB 10.5+ / cPanel phpMyAdmin
+-- Migration 009: Paymently Payment Integration & Production Schema Alignment
+-- Compatible with MySQL 8.0+ / MariaDB 10.5+ / cPanel phpMyAdmin (pixeswpo_dr)
 -- Base URL: https://daktarserial.paymently.io/api
 -- Booking Fee: BDT 10.00
 -- ============================================================================
 
 -- 1. Ensure appointments table has required payment & transaction tracking columns
--- Note: Stored procedure handles column existence safely across all MySQL/MariaDB engines
 DROP PROCEDURE IF EXISTS upgrade_appointments_paymently;
 DELIMITER //
 CREATE PROCEDURE upgrade_appointments_paymently()
@@ -38,28 +37,21 @@ DELIMITER ;
 CALL upgrade_appointments_paymently();
 DROP PROCEDURE IF EXISTS upgrade_appointments_paymently;
 
--- 2. Create payments table for Paymently checkout sessions and server verification
+-- 2. Ensure payments table exists with confirmed production schema (pixeswpo_dr)
+-- Uses: appointment_id INT UNSIGNED, transaction_id VARCHAR(100), method, amount, status, gateway_response
 CREATE TABLE IF NOT EXISTS payments (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    appointment_id VARCHAR(50) NOT NULL,
-    transaction_ref VARCHAR(100) NOT NULL UNIQUE,
-    payment_gateway VARCHAR(50) NOT NULL DEFAULT 'paymently',
-    gateway_invoice_id VARCHAR(100) NULL,
-    amount DECIMAL(10, 2) NOT NULL DEFAULT 10.00,
-    currency VARCHAR(10) NOT NULL DEFAULT 'BDT',
-    status ENUM('pending', 'completed', 'failed', 'cancelled', 'expired') NOT NULL DEFAULT 'pending',
-    payment_method VARCHAR(50) NULL,
-    sender_number VARCHAR(50) NULL,
-    gateway_transaction_id VARCHAR(100) NULL,
-    payment_url TEXT NULL,
-    metadata JSON NULL,
-    raw_response LONGTEXT NULL,
+    appointment_id INT UNSIGNED NOT NULL,
+    transaction_id VARCHAR(100) NULL UNIQUE,
+    method ENUM('cash_at_chamber', 'online_payment', 'bkash', 'nagad', 'card') NOT NULL DEFAULT 'cash_at_chamber',
+    amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    status ENUM('unpaid', 'pending', 'paid', 'failed', 'refunded') NOT NULL DEFAULT 'unpaid',
+    gateway_response TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_pmt_appt (appointment_id),
-    INDEX idx_pmt_tx (transaction_ref),
-    INDEX idx_pmt_invoice (gateway_invoice_id),
-    INDEX idx_pmt_status (status)
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
+    INDEX idx_payments_status (status),
+    INDEX idx_payments_tx (transaction_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. Log migration execution

@@ -14,7 +14,21 @@ const BOOKING_FEE_BDT = 10.00;
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
- * Helper to generate unique transaction reference
+ * Safely maps arbitrary payment method string to confirmed production payments.method ENUM
+ * Allowed: 'cash_at_chamber', 'online_payment', 'bkash', 'nagad', 'card'
+ */
+function mapPaymentMethod(rawMethod?: string | null): 'cash_at_chamber' | 'online_payment' | 'bkash' | 'nagad' | 'card' {
+  if (!rawMethod) return 'online_payment';
+  const m = String(rawMethod).toLowerCase();
+  if (m.includes('bkash')) return 'bkash';
+  if (m.includes('nagad')) return 'nagad';
+  if (m.includes('card') || m.includes('visa') || m.includes('master')) return 'card';
+  if (m.includes('cash')) return 'cash_at_chamber';
+  return 'online_payment';
+}
+
+/**
+ * Helper to generate unique transaction reference (e.g. DS-TXN-XXXXXXXX-XXXX)
  */
 function generateTransactionRef(): string {
   const ts = Date.now().toString(36).toUpperCase();
@@ -53,25 +67,32 @@ function formatSlotTime(startTime: string, slotDuration: number, serialNum: numb
 
 /**
  * Reconciles unpaid pending bookings older than 15 minutes to prevent holding serial slots indefinitely.
+ * Uses confirmed production schema:
+ * - joins payments.appointment_id = appointments.id (numeric INT UNSIGNED)
+ * - updates payments.status to 'failed' (valid production ENUM)
+ * - updates appointments.status to 'cancelled'
+ * - restores serials.status to 'available'
  */
-async function reconcileExpiredPendingPayments(): Promise<void> {
+export async function reconcileExpiredPendingPayments(): Promise<void> {
   try {
-    // Find pending payments older than 15 minutes
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const thresholdSql = fifteenMinutesAgo.toISOString().slice(0, 19).replace('T', ' ');
+
     const [expiredRows] = await pool.query<RowDataPacket[]>(`
-      SELECT p.id as payment_id, p.appointment_id, p.transaction_ref, a.doctor_id, a.chamber_id, a.schedule_date, a.serial_number
-      FROM payments p
-      JOIN appointments a ON p.appointment_id = a.appointment_id
-      WHERE p.status = 'pending' AND a.status = 'pending_payment' AND p.created_at < ?
-    `, [fifteenMinutesAgo.toISOString().slice(0, 19).replace('T', ' ')]);
+      SELECT a.id as appointment_pk, a.appointment_id, a.transaction_ref,
+             a.doctor_id, a.chamber_id, a.schedule_date, a.serial_number,
+             p.id as payment_pk
+      FROM appointments a
+      LEFT JOIN payments p ON p.appointment_id = a.id
+      WHERE a.status = 'pending_payment' AND a.created_at < ?
+    `, [thresholdSql]);
 
     for (const row of expiredRows) {
       console.log(`[PaymentReconcile] Expiring stale pending booking ${row.appointment_id} (TXN: ${row.transaction_ref})`);
-      // 1. Mark payment expired
-      await pool.execute("UPDATE payments SET status = 'expired' WHERE id = ?", [row.payment_id]);
-      // 2. Mark appointment cancelled
-      await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE appointment_id = ?", [row.appointment_id]);
-      // 3. Free up serial slot in serials table back to available
+      if (row.payment_pk) {
+        await pool.execute("UPDATE payments SET status = 'failed' WHERE id = ?", [row.payment_pk]);
+      }
+      await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE id = ?", [row.appointment_pk]);
       await pool.execute(`
         UPDATE serials SET status = 'available'
         WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ? AND status = 'booked'
@@ -175,6 +196,8 @@ router.post('/initiate', async (req: Request, res: Response) => {
 
   // Concurrency-safe slot lock and pending reservation
   const conn = await pool.getConnection();
+  let apptRecordId: number;
+
   try {
     await conn.beginTransaction();
 
@@ -211,14 +234,15 @@ router.post('/initiate', async (req: Request, res: Response) => {
     }
 
     // Insert appointment in pending_payment state
-    await conn.execute(`
+    // Doctor consultation fee is preserved as schedule.fee; booking fee is separate BDT 10.00
+    const [insertResult] = await conn.execute<ResultSetHeader>(`
       INSERT INTO appointments (
         appointment_id, patient_id, doctor_id, chamber_id, schedule_id,
         schedule_date, serial_number, appointment_time,
         patient_name, patient_phone, patient_age, patient_gender,
         problem_description, fee, booking_fee, payment_status, booking_source,
-        transaction_ref, created_by, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'online', ?, ?, 'pending_payment')
+        transaction_ref, payment_method, created_by, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'online', ?, 'Paymently', ?, 'pending_payment')
     `, [
       appointmentId,
       user?.id || null,
@@ -239,22 +263,33 @@ router.post('/initiate', async (req: Request, res: Response) => {
       user?.id || null,
     ]);
 
-    // Insert pending payment record
+    apptRecordId = insertResult.insertId;
+
+    // Insert pending payment record using verified production schema:
+    // appointment_id (INT UNSIGNED -> references appointments.id)
+    // transaction_id (VARCHAR(100) UNIQUE -> stores transactionRef)
+    // method (ENUM -> 'online_payment')
+    // amount (DECIMAL(10,2) -> 10.00)
+    // status (ENUM -> 'pending')
+    // gateway_response (TEXT -> stores JSON metadata)
     await conn.execute(`
       INSERT INTO payments (
-        appointment_id, transaction_ref, payment_gateway, amount, currency, status, metadata
-      ) VALUES (?, ?, 'paymently', ?, 'BDT', 'pending', ?)
+        appointment_id, transaction_id, method, amount, status, gateway_response
+      ) VALUES (?, ?, 'online_payment', ?, 'pending', ?)
     `, [
-      appointmentId,
+      apptRecordId,
       transactionRef,
       BOOKING_FEE_BDT,
       JSON.stringify({
+        appointmentId,
+        transactionRef,
         patientName,
         patientPhone,
         doctorId: docIdNum,
         chamberId: chamIdNum,
         scheduleDate,
         serialNumber: serialNum,
+        initiatedAt: new Date().toISOString(),
       }),
     ]);
 
@@ -294,6 +329,7 @@ router.post('/initiate', async (req: Request, res: Response) => {
     metadata: {
       appointmentId,
       transactionRef,
+      appointmentPk: apptRecordId,
       doctorId: docIdNum,
       chamberId: chamIdNum,
       patientPhone,
@@ -305,12 +341,12 @@ router.post('/initiate', async (req: Request, res: Response) => {
 
   if (!chargeResult.success || !chargeResult.paymentUrl) {
     console.error('[Paymently] Failed to create payment charge:', chargeResult);
-    // Safe cancellation: release serial slot and mark appointment failed
-    await pool.execute("UPDATE payments SET status = 'failed', raw_response = ? WHERE transaction_ref = ?", [
-      JSON.stringify(chargeResult.rawResponse || chargeResult.message),
-      transactionRef,
+    // Safe cancellation: release serial slot and mark appointment/payment failed
+    await pool.execute("UPDATE payments SET status = 'failed', gateway_response = ? WHERE appointment_id = ?", [
+      JSON.stringify(chargeResult.rawResponse || { message: chargeResult.message }),
+      apptRecordId,
     ]);
-    await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE transaction_ref = ?", [transactionRef]);
+    await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE id = ?", [apptRecordId]);
     await pool.execute(`
       UPDATE serials SET status = 'available'
       WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ? AND status = 'booked'
@@ -322,16 +358,20 @@ router.post('/initiate', async (req: Request, res: Response) => {
     });
   }
 
-  // Update payment record with payment_url and gateway invoice_id
+  // Update payment record with gateway response details
   await pool.execute(`
     UPDATE payments
-    SET payment_url = ?, gateway_invoice_id = ?, raw_response = ?
-    WHERE transaction_ref = ?
+    SET gateway_response = ?
+    WHERE appointment_id = ?
   `, [
-    chargeResult.paymentUrl,
-    chargeResult.invoiceId || null,
-    JSON.stringify(chargeResult.rawResponse || {}),
-    transactionRef,
+    JSON.stringify({
+      paymentUrl: chargeResult.paymentUrl,
+      invoiceId: chargeResult.invoiceId || null,
+      appointmentId,
+      transactionRef,
+      raw: chargeResult.rawResponse || {},
+    }),
+    apptRecordId,
   ]);
 
   await logActivity(
@@ -374,79 +414,135 @@ const handlePaymentlyCallback = async (req: Request, res: Response) => {
     return res.redirect(`${hostUrl}/?payment_status=failed&invoice_id=${encodeURIComponent(invoiceId)}&reason=${encodeURIComponent(verifyResult.message || 'Payment not completed')}`);
   }
 
-  // Amount verification (must cover booking fee BDT 10)
+  // Amount verification (must cover booking fee BDT 10.00)
   if (verifyResult.amount !== undefined && verifyResult.amount < BOOKING_FEE_BDT) {
     console.error(`[PaymentlyCallback] Amount mismatch! Expected >= ${BOOKING_FEE_BDT}, got ${verifyResult.amount}`);
     return res.redirect(`${hostUrl}/?payment_status=failed&error=amount_mismatch`);
   }
 
-  // Look up matching payment record
-  // 1. By gateway_invoice_id
-  let [paymentRows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM payments WHERE gateway_invoice_id = ?',
-    [invoiceId]
-  );
+  // Look up matching appointment and payment records
+  let apptRow: any = null;
 
-  // 2. Fallback lookup by metadata transactionRef or appointmentId
-  if (paymentRows.length === 0 && verifyResult.metadata) {
+  // 1. Primary lookup by metadata (transactionRef, appointmentId, or appointmentPk)
+  if (verifyResult.metadata) {
     const metaTx = verifyResult.metadata.transactionRef || verifyResult.metadata.transaction_ref;
     const metaAppt = verifyResult.metadata.appointmentId || verifyResult.metadata.appointment_id;
+    const metaPk = verifyResult.metadata.appointmentPk || verifyResult.metadata.appointment_pk;
+
     if (metaTx) {
-      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM payments WHERE transaction_ref = ?', [metaTx]);
-      paymentRows = rows;
-    } else if (metaAppt) {
-      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM payments WHERE appointment_id = ?', [metaAppt]);
-      paymentRows = rows;
+      const [rows] = await pool.query<RowDataPacket[]>(`
+        SELECT a.*, p.id as payment_pk, p.status as payment_status_val, p.amount as payment_amount
+        FROM appointments a
+        LEFT JOIN payments p ON p.appointment_id = a.id
+        WHERE a.transaction_ref = ?
+      `, [metaTx]);
+      if (rows.length > 0) apptRow = rows[0];
+    }
+
+    if (!apptRow && metaAppt) {
+      const [rows] = await pool.query<RowDataPacket[]>(`
+        SELECT a.*, p.id as payment_pk, p.status as payment_status_val, p.amount as payment_amount
+        FROM appointments a
+        LEFT JOIN payments p ON p.appointment_id = a.id
+        WHERE a.appointment_id = ?
+      `, [metaAppt]);
+      if (rows.length > 0) apptRow = rows[0];
+    }
+
+    if (!apptRow && metaPk) {
+      const [rows] = await pool.query<RowDataPacket[]>(`
+        SELECT a.*, p.id as payment_pk, p.status as payment_status_val, p.amount as payment_amount
+        FROM appointments a
+        LEFT JOIN payments p ON p.appointment_id = a.id
+        WHERE a.id = ?
+      `, [Number(metaPk)]);
+      if (rows.length > 0) apptRow = rows[0];
     }
   }
 
-  if (paymentRows.length === 0) {
-    console.error(`[PaymentlyCallback] No payment record found for verified invoice ${invoiceId}`);
+  // 2. Secondary lookup by gateway response containing invoiceId
+  if (!apptRow) {
+    const [rows] = await pool.query<RowDataPacket[]>(`
+      SELECT a.*, p.id as payment_pk, p.status as payment_status_val, p.amount as payment_amount
+      FROM payments p
+      JOIN appointments a ON p.appointment_id = a.id
+      WHERE p.gateway_response LIKE ?
+    `, [`%${invoiceId}%`]);
+    if (rows.length > 0) apptRow = rows[0];
+  }
+
+  if (!apptRow) {
+    console.error(`[PaymentlyCallback] No appointment record found for verified invoice ${invoiceId}`);
     return res.redirect(`${hostUrl}/?payment_status=failed&error=record_not_found`);
   }
 
-  const payment = paymentRows[0] as any;
-
   // Idempotency: Prevent duplicate callback processing
-  if (payment.status === 'completed') {
-    console.log(`[PaymentlyCallback] Payment ${payment.transaction_ref} already completed. Redirecting to confirmation.`);
-    return res.redirect(`${hostUrl}/?payment_status=success&appointment_id=${encodeURIComponent(payment.appointment_id)}&txn=${encodeURIComponent(payment.transaction_ref)}`);
+  if (apptRow.payment_status === 'paid' || apptRow.payment_status_val === 'paid') {
+    console.log(`[PaymentlyCallback] Payment for ${apptRow.appointment_id} already marked paid. Redirecting to confirmation.`);
+    return res.redirect(`${hostUrl}/?payment_status=success&appointment_id=${encodeURIComponent(apptRow.appointment_id)}&txn=${encodeURIComponent(apptRow.transaction_ref || '')}`);
   }
+
+  const mappedMethod = mapPaymentMethod(verifyResult.paymentMethod);
+  const paymentMethodLabel = verifyResult.paymentMethod ? `Paymently (${verifyResult.paymentMethod})` : 'Paymently';
 
   // Update payment and appointment atomically
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    await conn.execute(`
-      UPDATE payments
-      SET status = 'completed',
-          gateway_invoice_id = ?,
-          gateway_transaction_id = ?,
-          payment_method = ?,
-          sender_number = ?,
-          raw_response = ?,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [
-      invoiceId,
-      verifyResult.transactionId || null,
-      verifyResult.paymentMethod || 'mfs',
-      verifyResult.senderNumber || null,
-      JSON.stringify(verifyResult.rawResponse || {}),
-      payment.id,
-    ]);
+    if (apptRow.payment_pk) {
+      await conn.execute(`
+        UPDATE payments
+        SET status = 'paid',
+            method = ?,
+            gateway_response = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [
+        mappedMethod,
+        JSON.stringify({
+          invoiceId,
+          gatewayTxnId: verifyResult.transactionId || null,
+          paymentMethod: verifyResult.paymentMethod || null,
+          senderNumber: verifyResult.senderNumber || null,
+          amount: verifyResult.amount || BOOKING_FEE_BDT,
+          date: verifyResult.date || null,
+          raw: verifyResult.rawResponse || {},
+        }),
+        apptRow.payment_pk,
+      ]);
+    } else {
+      // In case payment row was missing, insert using confirmed production schema
+      await conn.execute(`
+        INSERT INTO payments (
+          appointment_id, transaction_id, method, amount, status, gateway_response
+        ) VALUES (?, ?, ?, ?, 'paid', ?)
+      `, [
+        apptRow.id,
+        apptRow.transaction_ref || `DS-INV-${invoiceId}`,
+        mappedMethod,
+        BOOKING_FEE_BDT,
+        JSON.stringify({
+          invoiceId,
+          gatewayTxnId: verifyResult.transactionId || null,
+          paymentMethod: verifyResult.paymentMethod || null,
+          senderNumber: verifyResult.senderNumber || null,
+          raw: verifyResult.rawResponse || {},
+        }),
+      ]);
+    }
 
+    // Mark appointment confirmed and paid without touching the doctor's consultation fee
     await conn.execute(`
       UPDATE appointments
       SET status = 'confirmed',
           payment_status = 'paid',
           payment_method = ?,
           updated_at = CURRENT_TIMESTAMP
-      WHERE appointment_id = ?
+      WHERE id = ?
     `, [
-      verifyResult.paymentMethod || 'mfs',
-      payment.appointment_id,
+      paymentMethodLabel,
+      apptRow.id,
     ]);
 
     await conn.commit();
@@ -460,17 +556,17 @@ const handlePaymentlyCallback = async (req: Request, res: Response) => {
 
   // Fetch full appointment details for notifications
   try {
-    const [apptRows] = await pool.query<RowDataPacket[]>(`
+    const [detailRows] = await pool.query<RowDataPacket[]>(`
       SELECT a.*, d.title as doctor_title, u.name as doctor_name, c.name as chamber_name
       FROM appointments a
       JOIN doctors d ON a.doctor_id = d.id
       JOIN users u ON d.user_id = u.id
       JOIN chambers c ON a.chamber_id = c.id
-      WHERE a.appointment_id = ?
-    `, [payment.appointment_id]);
+      WHERE a.id = ?
+    `, [apptRow.id]);
 
-    if (apptRows.length > 0) {
-      const appt = apptRows[0] as any;
+    if (detailRows.length > 0) {
+      const appt = detailRows[0] as any;
       notifyBookingSuccess({
         appointmentId: appt.appointment_id,
         serialNumber: appt.serial_number,
@@ -496,11 +592,11 @@ const handlePaymentlyCallback = async (req: Request, res: Response) => {
   await logActivity(
     null,
     'PAYMENT_COMPLETED',
-    `Paymently verified: ৳${BOOKING_FEE_BDT} for appointment ${payment.appointment_id} (TXN: ${payment.transaction_ref}, Gateway TXN: ${verifyResult.transactionId})`
+    `Paymently verified: ৳${BOOKING_FEE_BDT} for appointment ${apptRow.appointment_id} (TXN: ${apptRow.transaction_ref}, Gateway TXN: ${verifyResult.transactionId})`
   );
 
-  console.log(`[PaymentlyCallback] Successfully confirmed appointment ${payment.appointment_id}`);
-  return res.redirect(`${hostUrl}/?payment_status=success&appointment_id=${encodeURIComponent(payment.appointment_id)}&txn=${encodeURIComponent(payment.transaction_ref)}`);
+  console.log(`[PaymentlyCallback] Successfully confirmed appointment ${apptRow.appointment_id}`);
+  return res.redirect(`${hostUrl}/?payment_status=success&appointment_id=${encodeURIComponent(apptRow.appointment_id)}&txn=${encodeURIComponent(apptRow.transaction_ref || '')}`);
 };
 
 router.get('/paymently/callback', handlePaymentlyCallback);
@@ -516,34 +612,27 @@ router.get('/paymently/cancel', async (req: Request, res: Response) => {
 
   if (transactionRef) {
     try {
-      const [paymentRows] = await pool.query<RowDataPacket[]>(
-        'SELECT * FROM payments WHERE transaction_ref = ?',
-        [transactionRef]
-      );
+      const [apptRows] = await pool.query<RowDataPacket[]>(`
+        SELECT a.id, a.appointment_id, a.doctor_id, a.chamber_id, a.schedule_date, a.serial_number, a.status
+        FROM appointments a
+        WHERE a.transaction_ref = ?
+      `, [transactionRef]);
 
-      if (paymentRows.length > 0) {
-        const payment = paymentRows[0] as any;
-        if (payment.status === 'pending') {
-          // Mark payment cancelled
-          await pool.execute("UPDATE payments SET status = 'cancelled' WHERE id = ?", [payment.id]);
+      if (apptRows.length > 0) {
+        const appt = apptRows[0] as any;
+        if (appt.status === 'pending_payment') {
           // Mark appointment cancelled
-          await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE appointment_id = ?", [payment.appointment_id]);
+          await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE id = ?", [appt.id]);
+          // Mark matching payment record as failed (valid ENUM value)
+          await pool.execute("UPDATE payments SET status = 'failed' WHERE appointment_id = ?", [appt.id]);
 
-          // Fetch appointment details to free up serial
-          const [apptRows] = await pool.query<RowDataPacket[]>(
-            'SELECT doctor_id, chamber_id, schedule_date, serial_number FROM appointments WHERE appointment_id = ?',
-            [payment.appointment_id]
-          );
+          // Free up serial slot
+          await pool.execute(`
+            UPDATE serials SET status = 'available'
+            WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ? AND status = 'booked'
+          `, [appt.doctor_id, appt.chamber_id, appt.schedule_date, appt.serial_number]);
 
-          if (apptRows.length > 0) {
-            const appt = apptRows[0] as any;
-            await pool.execute(`
-              UPDATE serials SET status = 'available'
-              WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ? AND status = 'booked'
-            `, [appt.doctor_id, appt.chamber_id, appt.schedule_date, appt.serial_number]);
-          }
-
-          console.log(`[PaymentlyCancel] Released serial and cancelled appointment ${payment.appointment_id}`);
+          console.log(`[PaymentlyCancel] Released serial and cancelled appointment ${appt.appointment_id}`);
         }
       }
     } catch (err: any) {
@@ -575,55 +664,111 @@ router.post('/paymently/webhook', async (req: Request, res: Response) => {
     return res.status(200).json({ status: 'unverified_or_incomplete', verifyResult });
   }
 
-  // Find payment record
-  let [paymentRows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM payments WHERE gateway_invoice_id = ?',
-    [invoiceId]
-  );
+  if (verifyResult.amount !== undefined && verifyResult.amount < BOOKING_FEE_BDT) {
+    return res.status(400).json({ error: 'AMOUNT_MISMATCH' });
+  }
 
-  if (paymentRows.length === 0 && verifyResult.metadata) {
+  // Find matching appointment record
+  let apptRow: any = null;
+  if (verifyResult.metadata) {
     const metaTx = verifyResult.metadata.transactionRef || verifyResult.metadata.transaction_ref;
+    const metaAppt = verifyResult.metadata.appointmentId || verifyResult.metadata.appointment_id;
+    const metaPk = verifyResult.metadata.appointmentPk || verifyResult.metadata.appointment_pk;
+
     if (metaTx) {
-      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM payments WHERE transaction_ref = ?', [metaTx]);
-      paymentRows = rows;
+      const [rows] = await pool.query<RowDataPacket[]>(`
+        SELECT a.*, p.id as payment_pk, p.status as payment_status_val
+        FROM appointments a
+        LEFT JOIN payments p ON p.appointment_id = a.id
+        WHERE a.transaction_ref = ?
+      `, [metaTx]);
+      if (rows.length > 0) apptRow = rows[0];
+    }
+
+    if (!apptRow && metaAppt) {
+      const [rows] = await pool.query<RowDataPacket[]>(`
+        SELECT a.*, p.id as payment_pk, p.status as payment_status_val
+        FROM appointments a
+        LEFT JOIN payments p ON p.appointment_id = a.id
+        WHERE a.appointment_id = ?
+      `, [metaAppt]);
+      if (rows.length > 0) apptRow = rows[0];
+    }
+
+    if (!apptRow && metaPk) {
+      const [rows] = await pool.query<RowDataPacket[]>(`
+        SELECT a.*, p.id as payment_pk, p.status as payment_status_val
+        FROM appointments a
+        LEFT JOIN payments p ON p.appointment_id = a.id
+        WHERE a.id = ?
+      `, [Number(metaPk)]);
+      if (rows.length > 0) apptRow = rows[0];
     }
   }
 
-  if (paymentRows.length > 0) {
-    const payment = paymentRows[0] as any;
-    if (payment.status !== 'completed') {
-      await pool.execute(`
-        UPDATE payments
-        SET status = 'completed',
-            gateway_invoice_id = ?,
-            gateway_transaction_id = ?,
-            payment_method = ?,
-            sender_number = ?,
-            raw_response = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [
-        invoiceId,
-        verifyResult.transactionId || null,
-        verifyResult.paymentMethod || 'mfs',
-        verifyResult.senderNumber || null,
-        JSON.stringify(verifyResult.rawResponse || {}),
-        payment.id,
-      ]);
+  if (!apptRow) {
+    const [rows] = await pool.query<RowDataPacket[]>(`
+      SELECT a.*, p.id as payment_pk, p.status as payment_status_val
+      FROM payments p
+      JOIN appointments a ON p.appointment_id = a.id
+      WHERE p.gateway_response LIKE ?
+    `, [`%${invoiceId}%`]);
+    if (rows.length > 0) apptRow = rows[0];
+  }
 
-      await pool.execute(`
-        UPDATE appointments
-        SET status = 'confirmed',
-            payment_status = 'paid',
-            payment_method = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE appointment_id = ?
-      `, [
-        verifyResult.paymentMethod || 'mfs',
-        payment.appointment_id,
-      ]);
+  if (apptRow) {
+    // Idempotent: check if already paid
+    if (apptRow.payment_status !== 'paid' && apptRow.payment_status_val !== 'paid') {
+      const mappedMethod = mapPaymentMethod(verifyResult.paymentMethod);
+      const paymentMethodLabel = verifyResult.paymentMethod ? `Paymently (${verifyResult.paymentMethod})` : 'Paymently';
 
-      console.log(`[PaymentlyWebhook] Confirmed appointment ${payment.appointment_id}`);
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+
+        if (apptRow.payment_pk) {
+          await conn.execute(`
+            UPDATE payments
+            SET status = 'paid',
+                method = ?,
+                gateway_response = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `, [
+            mappedMethod,
+            JSON.stringify({
+              invoiceId,
+              gatewayTxnId: verifyResult.transactionId || null,
+              paymentMethod: verifyResult.paymentMethod || null,
+              senderNumber: verifyResult.senderNumber || null,
+              amount: verifyResult.amount || BOOKING_FEE_BDT,
+              raw: verifyResult.rawResponse || {},
+            }),
+            apptRow.payment_pk,
+          ]);
+        }
+
+        await conn.execute(`
+          UPDATE appointments
+          SET status = 'confirmed',
+              payment_status = 'paid',
+              payment_method = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [
+          paymentMethodLabel,
+          apptRow.id,
+        ]);
+
+        await conn.commit();
+        console.log(`[PaymentlyWebhook] Confirmed appointment ${apptRow.appointment_id}`);
+      } catch (err: any) {
+        await conn.rollback();
+        console.error('[PaymentlyWebhook] DB error:', err);
+        return res.status(500).json({ error: 'DB_ERROR' });
+      } finally {
+        conn.release();
+      }
     }
   }
 
@@ -639,29 +784,51 @@ router.get('/status/:transactionRef', async (req: Request, res: Response) => {
 
   try {
     const [rows] = await pool.query<RowDataPacket[]>(`
-      SELECT p.*, a.status as appointment_status, a.patient_name, a.serial_number, a.schedule_date, a.appointment_time
-      FROM payments p
-      JOIN appointments a ON p.appointment_id = a.appointment_id
-      WHERE p.transaction_ref = ?
-    `, [transactionRef]);
+      SELECT 
+        a.id as appointment_pk,
+        a.appointment_id,
+        a.status as appointment_status,
+        a.payment_status as appointment_payment_status,
+        a.booking_fee,
+        a.fee as consultation_fee,
+        a.transaction_ref,
+        a.payment_method as appointment_payment_method,
+        a.patient_name,
+        a.serial_number,
+        a.schedule_date,
+        a.appointment_time,
+        p.id as payment_pk,
+        p.amount as payment_amount,
+        p.status as payment_status,
+        p.method as payment_method,
+        p.transaction_id,
+        p.gateway_response
+      FROM appointments a
+      LEFT JOIN payments p ON p.appointment_id = a.id
+      WHERE a.transaction_ref = ? OR p.transaction_id = ?
+      LIMIT 1
+    `, [transactionRef, transactionRef]);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'TRANSACTION_NOT_FOUND' });
     }
 
     const item = rows[0] as any;
+    const finalStatus = item.payment_status || (item.appointment_payment_status === 'paid' ? 'paid' : 'pending');
+
     return res.json({
       success: true,
-      transactionRef: item.transaction_ref,
+      transactionRef: item.transaction_ref || item.transaction_id,
       appointmentId: item.appointment_id,
-      status: item.status,
-      amount: item.amount,
-      currency: item.currency,
-      paymentMethod: item.payment_method,
+      status: finalStatus,
+      amount: item.payment_amount != null ? Number(item.payment_amount) : Number(item.booking_fee || BOOKING_FEE_BDT),
+      currency: 'BDT',
+      paymentMethod: item.appointment_payment_method || item.payment_method || 'online_payment',
       appointmentStatus: item.appointment_status,
       serialNumber: item.serial_number,
       scheduleDate: item.schedule_date,
       appointmentTime: item.appointment_time,
+      consultationFee: item.consultation_fee,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

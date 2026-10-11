@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test:payment": "tsx server/scripts/test_paymently.ts",
     "db:migrate": "tsx server/scripts/migrate.ts",
     "android:build": "npm run build && npx cap sync android",
     "android:sync": "npx cap sync android",
