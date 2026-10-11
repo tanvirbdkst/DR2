@@ -230,8 +230,15 @@ export const PatientDashboardPage: React.FC<PatientDashboardPageProps> = ({ onFi
 
                       <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
                         <span>Patient: <strong className="text-slate-700">{appt.patient_name}</strong> {appt.patient_phone ? `(${appt.patient_phone})` : ''}</span>
-                        <span>Fee: <strong className="text-emerald-700 font-bold">৳{appt.consultation_fee ?? appt.fee ?? 0}</strong></span>
+                        <span>Visit Fee: <strong className="text-slate-800 font-bold">৳{appt.consultation_fee ?? appt.fee ?? 0}</strong></span>
                       </div>
+
+                      {appt.payment_status === 'paid' && (
+                        <div className="pt-1 flex items-center justify-between text-[10px] text-emerald-800 bg-emerald-50/60 px-2 py-1 rounded-lg border border-emerald-100">
+                          <span>Online Booking Fee: <strong>৳10.00 (PAID)</strong></span>
+                          <span className="font-mono text-slate-500">{appt.payment_method ? `Via ${appt.payment_method}` : 'Paymently Verified'}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

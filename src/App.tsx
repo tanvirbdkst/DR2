@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, CalendarCheck, PhoneCall, User as UserIcon } from 'lucide-react';
+import { Home, Search, CalendarCheck, PhoneCall, User as UserIcon, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { Navbar } from './components/Navbar.js';
 import { Footer } from './components/Footer.js';
@@ -67,6 +67,83 @@ function MainApp() {
     location: '',
   });
   const [lastBookingData, setLastBookingData] = useState<any>(null);
+  const [paymentNotice, setPaymentNotice] = useState<{ type: 'success' | 'error' | 'warning'; message: string; messageBn: string } | null>(null);
+
+  // Handle Paymently gateway redirection return (success, cancelled, failed)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const searchStr = window.location.search;
+    if (!searchStr) return;
+
+    const urlParams = new URLSearchParams(searchStr);
+    const paymentStatus = urlParams.get('payment_status');
+    const appointmentId = urlParams.get('appointment_id');
+    const txn = urlParams.get('txn');
+    const reason = urlParams.get('reason');
+
+    if (!paymentStatus) return;
+
+    if (paymentStatus === 'success' && appointmentId) {
+      // Fetch confirmed appointment and verified payment details
+      Promise.all([
+        fetch(`/api/appointments/details/${encodeURIComponent(appointmentId)}`).then((r) => (r.ok ? r.json() : null)),
+        txn ? fetch(`/api/payments/status/${encodeURIComponent(txn)}`).then((r) => (r.ok ? r.json() : null)) : Promise.resolve(null),
+      ])
+        .then(([apptData, pmtData]) => {
+          if (apptData?.appointment) {
+            const appt = apptData.appointment;
+            setLastBookingData({
+              message: 'Appointment Confirmed & Booking Fee Paid',
+              serialNumber: appt.serial_number < 10 ? `0${appt.serial_number}` : `${appt.serial_number}`,
+              appointmentId: appt.appointment_id,
+              paymentStatus: 'paid',
+              bookingFee: 10,
+              transactionRef: txn || appt.transaction_ref,
+              paymentMethod: pmtData?.paymentMethod || appt.payment_method || 'Paymently MFS',
+              details: {
+                doctorName: appt.doctor_name,
+                chamberName: appt.chamber_name,
+                chamberAddress: appt.chamber_address,
+                scheduleDate: appt.schedule_date,
+                appointmentTime: appt.appointment_time,
+                consultationFee: appt.fee,
+                patientName: appt.patient_name,
+                patientPhone: appt.patient_phone,
+                status: appt.status,
+              },
+            });
+            setCurrentView('booking-confirmed');
+            setPaymentNotice({
+              type: 'success',
+              message: 'Payment verified! Your serial booking has been confirmed successfully.',
+              messageBn: 'পেমেন্ট সফলভাবে যাচাই হয়েছে! আপনার সিরিয়াল বুকিং নিশ্চিত করা হয়েছে।',
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load verified appointment:', err);
+        });
+    } else if (paymentStatus === 'cancelled') {
+      setPaymentNotice({
+        type: 'warning',
+        message: 'Payment cancelled. Your temporary serial reservation was released.',
+        messageBn: 'পেমেন্ট বাতিল করা হয়েছে। আপনার সাময়িক সিরিয়াল স্লটটি মুক্ত করে দেওয়া হয়েছে।',
+      });
+    } else if (paymentStatus === 'failed') {
+      setPaymentNotice({
+        type: 'error',
+        message: `Payment could not be completed${reason ? `: ${reason}` : ''}. Please select a serial and try again.`,
+        messageBn: 'পেমেন্ট সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।',
+      });
+    }
+
+    // Clean query parameters from address bar without page reload
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -177,6 +254,37 @@ function MainApp() {
         currentView={currentView}
         setCurrentView={handleNavigate}
       />
+
+      {paymentNotice && (
+        <aside aria-label="Payment Status Notification" className="max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-3 sm:pt-4 animate-in fade-in duration-200">
+          <div
+            className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl flex items-center justify-between gap-3 text-xs sm:text-sm font-medium border shadow-xs ${
+              paymentNotice.type === 'success'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                : paymentNotice.type === 'warning'
+                ? 'bg-amber-50 text-amber-900 border-amber-200'
+                : 'bg-rose-50 text-rose-900 border-rose-200'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              {paymentNotice.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className={`w-5 h-5 shrink-0 ${paymentNotice.type === 'warning' ? 'text-amber-600' : 'text-rose-600'}`} />
+              )}
+              <span className="leading-snug">{paymentNotice.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPaymentNotice(null)}
+              className="p-1 rounded-lg hover:bg-black/5 text-slate-500 hover:text-slate-800 transition shrink-0 cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </aside>
+      )}
 
       <main className="flex-1 pb-16 md:pb-0">
         {currentView === 'home' && (

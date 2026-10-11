@@ -137,6 +137,9 @@ export interface Appointment {
   problem_description?: string;
   fee: number;
   consultation_fee?: number;
+  booking_fee?: number;
+  transaction_ref?: string;
+  payment_method?: string;
   payment_status: 'unpaid' | 'paid' | 'exempt';
   booking_source?: 'online' | 'compounder' | 'admin' | 'walk_in';
   created_by?: number;

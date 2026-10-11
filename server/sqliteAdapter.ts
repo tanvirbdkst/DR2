@@ -238,6 +238,25 @@ function initSqliteSchema(db: DatabaseSync) {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      appointment_id TEXT NOT NULL,
+      transaction_ref TEXT NOT NULL UNIQUE,
+      payment_gateway TEXT NOT NULL DEFAULT 'paymently',
+      gateway_invoice_id TEXT NULL,
+      amount NUMERIC NOT NULL DEFAULT 10.00,
+      currency TEXT NOT NULL DEFAULT 'BDT',
+      status TEXT NOT NULL DEFAULT 'pending',
+      payment_method TEXT NULL,
+      sender_number TEXT NULL,
+      gateway_transaction_id TEXT NULL,
+      payment_url TEXT NULL,
+      metadata TEXT NULL,
+      raw_response TEXT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS hospitals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -320,6 +339,9 @@ function ensureSqliteColumns(db: DatabaseSync) {
   addColumnIfMissing('appointments', 'created_by', 'INTEGER NULL');
   addColumnIfMissing('appointments', 'hospital_id', 'INTEGER NULL');
   addColumnIfMissing('appointments', 'external_booking_id', 'TEXT NULL');
+  addColumnIfMissing('appointments', 'booking_fee', 'NUMERIC NOT NULL DEFAULT 10.00');
+  addColumnIfMissing('appointments', 'transaction_ref', 'TEXT NULL');
+  addColumnIfMissing('appointments', 'payment_method', 'TEXT NULL');
   addColumnIfMissing('chambers', 'hospital_id', 'INTEGER NULL');
 
   try {

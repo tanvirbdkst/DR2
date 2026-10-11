@@ -99,6 +99,7 @@ async function runMigrations() {
       'migrations_006_districts.sql',
       'migrations_007_hospital_integration.sql',
       'migrations_008_notifications.sql',
+      'migrations_009_paymently.sql',
     ];
 
     for (const migFile of migrations) {

@@ -7,6 +7,10 @@ interface BookingConfirmationPageProps {
     message?: string;
     serialNumber: string;
     appointmentId: string;
+    paymentStatus?: string;
+    paymentMethod?: string;
+    transactionRef?: string;
+    bookingFee?: number;
     details: {
       doctorName: string;
       chamberName: string;
@@ -92,14 +96,30 @@ export const BookingConfirmationPage: React.FC<BookingConfirmationPageProps> = (
                   <span>Estimated Slot: {details.appointmentTime}</span>
                 </p>
               </div>
-              <div>
-                <p className="text-slate-400 text-xs font-semibold uppercase">{t('Consultation Fee', 'ভিজিট ফি')}</p>
-                <p className="text-slate-900 font-bold text-base text-emerald-700 mt-0.5">
-                  ৳{details.consultationFee}
-                </p>
-                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
-                  Pay at Chamber Reception
-                </span>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="text-slate-400 text-xs font-semibold uppercase">{t('Consultation Fee', 'ভিজিট ফি')}</p>
+                  <p className="text-slate-900 font-bold text-base text-slate-800 mt-0.5">
+                    ৳{details.consultationFee}
+                  </p>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                    Pay at Chamber Reception
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-slate-200/60">
+                  <p className="text-slate-400 text-xs font-semibold uppercase">{t('Online Booking Fee', 'অনলাইন সিরিয়াল ফি')}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-sm font-bold text-emerald-700">৳10.00</span>
+                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      PAID (পরিশোধিত)
+                    </span>
+                  </div>
+                  {bookingData.transactionRef && (
+                    <p className="text-[10px] font-mono text-slate-500 truncate" title={bookingData.transactionRef}>
+                      TXN: {bookingData.transactionRef}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 

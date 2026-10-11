@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2, Calendar, Clock, Award, ShieldCheck, Phone, MapPin, User,
   CheckCircle2, AlertCircle, ArrowLeft, Stethoscope, ChevronRight, Lock,
-  Share2, Copy, Check
+  Share2, Copy, Check, CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Chamber, Schedule, SerialSlot } from '../types.js';
@@ -142,7 +142,8 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
     const actualDoctorId = doctor?.id || (typeof doctorId === 'number' ? doctorId : 0);
 
     try {
-      const res = await fetch('/api/appointments/book', {
+      // 1. Initiate booking & Paymently checkout session
+      const res = await fetch('/api/payments/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -155,6 +156,7 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
           patientAge: Number(patientAge),
           patientGender,
           problemDescription,
+          patientEmail: user?.email || undefined,
         }),
       });
 
@@ -162,7 +164,7 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
 
       if (!res.ok) {
         if (res.status === 409) {
-          setBookingError(data.message || 'Duplicate booking rejected! This serial is already booked.');
+          setBookingError(data.message_bn || data.message || 'এই সিরিয়ালটি ইতিমধ্যে বুক হয়ে গেছে। অন্য একটি সিরিয়াল নির্বাচন করুন।');
           // Refresh availability to reflect booked status
           const refreshRes = await fetch(`/api/public/availability?doctorId=${actualDoctorId}&chamberId=${selectedChamberId}&date=${selectedDate}`);
           if (refreshRes.ok) {
@@ -170,16 +172,30 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
             setSerials(rData.serials || []);
           }
           setSelectedSerial(null);
+        } else if (res.status === 503 && data.error === 'PAYMENTLY_NOT_CONFIGURED') {
+          // Fallback notice if PAYMENTLY_API_KEY is not configured yet
+          setBookingError(
+            t(
+              'Paymently Gateway Notice: PAYMENTLY_API_KEY is not configured in the server environment. Please set PAYMENTLY_API_KEY in .env or cPanel Node.js variables.',
+              'Paymently গেটওয়ে নোটিশ: সার্ভারে PAYMENTLY_API_KEY কনফিগার করা নেই। অনুগ্রহ করে .env বা cPanel এ মার্চেন্ট API কী যুক্ত করুন।'
+            )
+          );
         } else {
-          setBookingError(data.error || 'Failed to confirm serial booking.');
+          setBookingError(data.message || data.error || 'Failed to initiate serial checkout.');
         }
         return;
       }
 
-      // Success! Pass to confirmation
+      // If gateway returned checkout URL, redirect patient to Paymently
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+        return;
+      }
+
+      // Fallback: direct confirmation
       onBookingSuccess(data);
     } catch (err: any) {
-      setBookingError(err.message || 'Network error during serial booking.');
+      setBookingError(err.message || 'Network error during checkout initiation.');
     } finally {
       setSubmitting(false);
     }
@@ -779,14 +795,39 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
             </div>
 
             {/* Step 5: Summary and Confirmation Button */}
-            <div className="pt-4 border-t border-slate-100 bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2 text-xs sm:text-sm text-slate-700">
-                <span className="font-medium">
-                  {selectedChamberObj?.name ? `Chamber: ${selectedChamberObj.name}` : 'Consultation Fee:'}
-                </span>
-                <span className="text-lg font-extrabold text-emerald-700">
-                  ৳{selectedChamberObj?.consultation_fee || doctor.consultation_fee}
-                </span>
+            <div className="pt-4 border-t border-slate-100 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3.5">
+              <div className="space-y-2 text-xs sm:text-sm text-slate-700">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">
+                    {t('Doctor Consultation Fee:', 'ডাক্তার ভিজিট ফি:')}
+                  </span>
+                  <span className="font-bold text-slate-900">
+                    ৳{selectedChamberObj?.consultation_fee || doctor.consultation_fee}
+                    <span className="text-[10px] text-slate-500 font-normal ml-1">
+                      ({t('Pay at Chamber', 'চেম্বারে দিন')})
+                    </span>
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200/70">
+                  <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{t('Online Serial Booking Fee:', 'অনলাইন সিরিয়াল বুকিং ফি:')}</span>
+                  </span>
+                  <span className="text-base sm:text-lg font-black text-emerald-700">
+                    ৳10.00
+                  </span>
+                </div>
+
+                <div className="bg-emerald-50/80 border border-emerald-100 rounded-xl p-2.5 text-[11px] text-emerald-900 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    {t(
+                      'Pay ৳10 securely via Paymently (bKash, Nagad, Rocket, Upay) to confirm your serial instantly.',
+                      'Paymently গেটওয়ের মাধ্যমে বিকাশ, নগদ বা রকেটে ৳১০ পরিশোধ করে তাৎক্ষণিক সিরিয়াল নিশ্চিত করুন।'
+                    )}
+                  </span>
+                </div>
               </div>
 
               <button
@@ -797,15 +838,15 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
                 {submitting ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Confirming Serial Booking...</span>
+                    <span>{t('Redirecting to Paymently Gateway...', 'Paymently গেটওয়েতে রিডাইরেক্ট হচ্ছে...')}</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="w-5 h-5" />
+                    <CreditCard className="w-5 h-5" />
                     <span>
                       {selectedSerial
-                        ? `${t('Confirm Serial', 'সিরিয়াল নিশ্চিত করুন')} ${selectedSerial < 10 ? `0${selectedSerial}` : selectedSerial}`
-                        : t('Select a Serial Slot to Confirm', 'সিরিয়াল নম্বর নির্বাচন করুন')}
+                        ? `${t('Pay ৳10 & Confirm Serial', '৳১০ পরিশোধ করে সিরিয়াল নিশ্চিত করুন')} (${selectedSerial < 10 ? `0${selectedSerial}` : selectedSerial})`
+                        : t('Select a Serial Slot to Pay ৳10', 'সিরিয়াল নির্বাচন করে ৳১০ পরিশোধ করুন')}
                     </span>
                   </>
                 )}
@@ -824,15 +865,15 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:hidden shadow-lg flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-slate-900 truncate">{doctor.title} {doctor.name}</p>
-          <p className="text-[11px] text-emerald-700 font-bold">Fee: ৳{selectedChamberObj?.consultation_fee || doctor.consultation_fee}</p>
+          <p className="text-[11px] text-emerald-700 font-bold">Booking Fee: ৳10 (Visit: ৳{selectedChamberObj?.consultation_fee || doctor.consultation_fee})</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => scrollToBooking()}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
           >
-            {t('Book Serial', 'সিরিয়াল নিন')}
+            {t('Pay ৳10 & Book', 'সিরিয়াল নিন')}
           </button>
           <button
             type="button"
