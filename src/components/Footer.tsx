@@ -40,20 +40,20 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
               onClick={() => onNavigate?.('home')}
               aria-label="Doctor Serial — Home"
               title="Doctor Serial"
-              className="flex items-center gap-3 cursor-pointer w-fit rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 group"
+              className="flex items-center gap-2.5 sm:gap-3 cursor-pointer rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 group text-left max-w-full"
             >
-              <img
-                src="/logo.png"
-                alt="Doctor Serial"
-                width={1254}
-                height={1254}
-                className="h-12 w-auto max-w-[64px] object-contain rounded-xl ring-1 ring-white/10"
-              />
-              <div className="flex flex-col text-left">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl overflow-hidden ring-1 ring-white/10 bg-slate-800 flex items-center justify-center p-0.5">
+                <img
+                  src="/logo.png"
+                  alt="Doctor Serial"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="flex flex-col text-left min-w-0">
                 <span className="text-base sm:text-lg font-bold tracking-tight text-white leading-tight">
                   Doctor <span className="text-emerald-400">Serial</span>
                 </span>
-                <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400 block -mt-0.5">
+                <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400 block -mt-0.5 truncate">
                   {t('Chamber Booking Platform', 'চেম্বার বুকিং প্ল্যাটফর্ম')}
                 </span>
               </div>

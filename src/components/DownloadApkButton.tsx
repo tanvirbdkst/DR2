@@ -75,8 +75,8 @@ export const DownloadApkButton: React.FC<DownloadApkButtonProps> = ({
     if (!modalOpen) return null;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
-        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 text-slate-800 relative space-y-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 text-slate-800 relative space-y-4 max-h-[90vh] overflow-y-auto">
           <button
             onClick={() => setModalOpen(false)}
             className="absolute top-4 right-4 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
@@ -250,7 +250,7 @@ export const DownloadApkButton: React.FC<DownloadApkButtonProps> = ({
   // 4. Banner / Card variant for Home Page feature showcase
   return (
     <>
-      <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white p-6 sm:p-8 border border-slate-700/60 shadow-xl ${className}`}>
+      <div className={`relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white p-4 sm:p-8 border border-slate-700/60 shadow-xl ${className}`}>
         {/* Decorative background circle */}
         <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
 

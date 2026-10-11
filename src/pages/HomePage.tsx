@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext.js';
 import { Specialty, DoctorProfile } from '../types.js';
 import { District, groupDistrictsByDivision } from '../data/districts.js';
 import { getApiUrl } from '../config/api.js';
+import { DownloadApkButton } from '../components/DownloadApkButton.js';
 
 const getSpecialtyConfig = (slug: string, name?: string) => {
   const s = `${slug || ''} ${name || ''}`.toLowerCase();
@@ -177,24 +178,24 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
   return (
     <div className="space-y-16 pb-16">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-emerald-950 via-slate-900 to-slate-900 text-white pt-14 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className="relative overflow-hidden bg-gradient-to-b from-emerald-950 via-slate-900 to-slate-900 text-white pt-10 sm:pt-14 pb-14 sm:pb-20 px-3 sm:px-6 lg:px-8">
         {/* Subtle grid pattern */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-25" />
 
-        <div className="relative max-w-5xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{t('Instant Doctor Serial Booking in Bangladesh', 'বাংলাদেশের দ্রুততম ডাক্তার সিরিয়াল বুকিং প্ল্যাটফর্ম')}</span>
+        <div className="relative max-w-5xl mx-auto text-center space-y-4 sm:space-y-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] sm:text-xs font-semibold">
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{t('Instant Doctor Serial Booking in Bangladesh', 'বাংলাদেশের দ্রুততম ডাক্তার সিরিয়াল বুকিং প্ল্যাটফর্ম')}</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-snug sm:leading-tight">
             {t('Book Doctor Chamber Serial', 'ডাক্তারের চেম্বার সিরিয়াল নিন')} <br className="hidden sm:inline" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-200">
               {t('Without Standing in Crowded Queues', 'দীর্ঘ লাইনে না দাঁড়িয়ে')}
             </span>
           </h1>
 
-          <p className="max-w-2xl mx-auto text-slate-300 text-sm sm:text-base leading-relaxed">
+          <p className="max-w-2xl mx-auto text-slate-300 text-xs sm:text-base leading-relaxed px-1">
             {t(
               'Select doctor, choose your preferred chamber and date, pick your exact serial number (e.g. Serial 03), and receive your unique Appointment ID instantly.',
               'ডাক্তার ও চেম্বার পছন্দ করুন, তারিখ নির্বাচন করুন, নির্দিষ্ট সিরিয়াল বেছে নিন এবং সাথে সাথে নিশ্চিত অ্যাপয়েন্টমেন্ট আইডি পান।'
@@ -202,7 +203,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
           </p>
 
           {/* Search Box Card */}
-          <div className="max-w-4xl mx-auto mt-8 bg-white p-3 sm:p-4 rounded-2xl shadow-2xl border border-slate-200 text-slate-800 text-left">
+          <div className="max-w-4xl mx-auto mt-6 sm:mt-8 bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-xl border border-slate-200 text-slate-800 text-left">
             <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3">
               {/* Doctor Name / Query */}
               <div className="sm:col-span-4 relative">
@@ -292,9 +293,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
               </div>
             </form>
 
-            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between text-[11px] text-slate-500 gap-2">
-              <span className="flex items-center gap-1">
-                <span className="font-semibold text-slate-700">{t('Popular:', 'জনপ্রিয়:')}</span>
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-semibold text-slate-700 shrink-0">{t('Popular:', 'জনপ্রিয়:')}</span>
                 {[
                   { name: 'Cardiology', name_bn: 'হৃদরোগ', slug: 'cardiology' },
                   { name: 'General Medicine', name_bn: 'সাধারণ চিকিৎসা', slug: 'general-medicine' },
@@ -308,13 +309,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                       setSelectedSpecialty(item.slug);
                       onSearch({ search: '', specialty: item.slug, location: '' });
                     }}
-                    className="hover:text-emerald-600 underline decoration-slate-300 underline-offset-2 ml-1 cursor-pointer"
+                    className="hover:text-emerald-600 underline decoration-slate-300 underline-offset-2 cursor-pointer"
                   >
                     {lang === 'bn' ? item.name_bn : item.name}
                   </button>
                 ))}
-              </span>
-              <span className="text-emerald-600 font-medium flex items-center gap-1">
+              </div>
+              <span className="text-emerald-600 font-medium flex items-center gap-1 shrink-0">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 {t('Verified BMDC Doctors Only', 'শুধুমাত্র অনুমোদিত ডাক্তার')}
               </span>
@@ -344,7 +345,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         </div>
 
         {/* Responsive Grid: 2 cols on mobile, 3 cols on md, 4 cols on desktop */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
           {(showAllSpecialties ? specialties : specialties.slice(0, 12)).map((spec) => {
             const conf = getSpecialtyConfig(spec.slug, spec.name);
             const IconComp = conf.Icon;
@@ -355,21 +356,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   setSelectedSpecialty(spec.slug);
                   onSearch({ search: '', specialty: spec.slug, location: '' });
                 }}
-                className={`p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 ${conf.borderHover} hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group cursor-pointer text-center flex flex-col items-center justify-center min-h-[140px]`}
+                className={`p-3.5 sm:p-6 rounded-xl sm:rounded-2xl bg-white border border-slate-200 ${conf.borderHover} hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group cursor-pointer text-center flex flex-col items-center justify-center min-h-[115px] sm:min-h-[140px]`}
               >
-                <div className={`w-13 h-13 mx-auto rounded-2xl ${conf.iconBg} flex items-center justify-center group-hover:scale-105 transition-all duration-200 shadow-2xs mb-3`}>
-                  <IconComp className="w-6 h-6" />
+                <div className={`w-10 h-10 sm:w-13 sm:h-13 mx-auto rounded-xl sm:rounded-2xl ${conf.iconBg} flex items-center justify-center group-hover:scale-105 transition-all duration-200 shadow-2xs mb-2 sm:mb-3`}>
+                  <IconComp className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <h3 className="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-emerald-600 transition leading-snug line-clamp-1">
                   {lang === 'bn' ? (spec.name_bn || spec.name) : spec.name}
                 </h3>
                 {lang === 'bn' ? (
-                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1 line-clamp-1 font-normal">
+                  <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 line-clamp-1 font-normal">
                     {spec.name}
                   </p>
                 ) : (
                   spec.name_bn && (
-                    <p className="text-[11px] sm:text-xs text-slate-500 mt-1 line-clamp-1 font-normal">
+                    <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 line-clamp-1 font-normal">
                       {spec.name_bn}
                     </p>
                   )
@@ -562,6 +563,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         </section>
       )}
 
+      {/* Official Daktar Serial Android Mobile App Showcase Banner */}
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <DownloadApkButton variant="banner" />
+      </section>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Home, Search, CalendarCheck, PhoneCall, User as UserIcon } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { Navbar } from './components/Navbar.js';
 import { Footer } from './components/Footer.js';
@@ -177,7 +178,7 @@ function MainApp() {
         setCurrentView={handleNavigate}
       />
 
-      <main className="flex-1">
+      <main className="flex-1 pb-16 md:pb-0">
         {currentView === 'home' && (
           <HomePage
             onSearch={handleSearchFromHome}
@@ -282,6 +283,89 @@ function MainApp() {
       </main>
 
       <Footer onNavigate={handleNavigate} />
+
+      {/* Mobile Bottom Navigation Bar (compact mobile thumb navigation) */}
+      {currentView !== 'doctor-profile' && (
+        <nav
+          aria-label="Mobile Navigation"
+          className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1 md:hidden shadow-lg pb-safe flex items-center justify-around"
+        >
+          <button
+            onClick={() => handleNavigate('home')}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              currentView === 'home' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">হোম</span>
+          </button>
+
+          <button
+            onClick={() => handleNavigate('doctors')}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              currentView === 'doctors' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Search className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">ডাক্তার</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (!user) {
+                handleNavigate('login');
+              } else if (user.role === 'patient') {
+                handleNavigate('patient-dashboard');
+              } else if (user.role === 'doctor') {
+                handleNavigate('doctor-dashboard');
+              } else if (user.role === 'compounder') {
+                handleNavigate('compounder-dashboard');
+              } else {
+                handleNavigate('admin-dashboard');
+              }
+            }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              ['patient-dashboard', 'doctor-dashboard', 'compounder-dashboard', 'admin-dashboard'].includes(currentView)
+                ? 'text-emerald-600 font-bold'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <CalendarCheck className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">সিরিয়াল</span>
+          </button>
+
+          <button
+            onClick={() => handleNavigate('emergency')}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              currentView === 'emergency' ? 'text-rose-600 font-bold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <PhoneCall className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">জরুরি</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (user) {
+                if (user.role === 'patient') handleNavigate('patient-dashboard');
+                else if (user.role === 'doctor') handleNavigate('doctor-dashboard');
+                else if (user.role === 'compounder') handleNavigate('compounder-dashboard');
+                else handleNavigate('admin-dashboard');
+              } else {
+                handleNavigate('login');
+              }
+            }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              ['login', 'register-patient', 'register-doctor'].includes(currentView)
+                ? 'text-emerald-600 font-bold'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <UserIcon className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">{user ? 'প্রোফাইল' : 'লগইন'}</span>
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

@@ -248,7 +248,7 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
   const selectedChamberObj = chambers.find((c) => c.id === selectedChamberId);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-24 sm:pb-12">
+    <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 sm:space-y-8 pb-28 sm:pb-12">
       {/* Top bar: Back navigation + Share and Copy Link actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <button
@@ -304,13 +304,13 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
       </div>
 
       {/* SECTION 1: COMPLETE DOCTOR PROFILE CARD */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 p-4 sm:p-8 shadow-xs space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6">
           <div className="relative shrink-0">
             <img
               src={doctor.avatar_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&auto=format&fit=crop&q=80'}
               alt={doctor.name}
-              className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-emerald-500/20 shadow-md ring-4 ring-slate-50"
+              className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-emerald-500/20 shadow-md ring-4 ring-slate-50"
             />
             <span className="absolute -bottom-2 -right-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-0.5 border border-white">
               <ShieldCheck className="w-3 h-3" />
@@ -559,7 +559,7 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
 
       {/* SECTION 3: DEDICATED SERIAL BOOKING SECTION */}
       <div id="booking-section" className="scroll-mt-6">
-        <div className="bg-white rounded-3xl border-2 border-emerald-500/30 p-6 sm:p-8 shadow-lg space-y-6">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border-2 border-emerald-500/30 p-4 sm:p-8 shadow-lg space-y-4 sm:space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 inline-flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-emerald-700" />

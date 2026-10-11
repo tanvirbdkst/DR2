@@ -112,10 +112,10 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+        <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight">
           {t('Find Specialist Doctors', 'বিশেষজ্ঞ ডাক্তার অনুসন্ধান')}
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -127,7 +127,7 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xs">
         <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
           <div className="sm:col-span-4 relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -256,19 +256,19 @@ export const DoctorsPage: React.FC<DoctorsPageProps> = ({ initialFilters, onSele
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {doctors.map((doctor) => (
             <div
               key={doctor.id}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs hover:shadow-md transition flex flex-col justify-between"
+              className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs hover:shadow-md transition flex flex-col justify-between"
             >
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {/* Header info */}
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <img
                     src={doctor.avatar_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&auto=format&fit=crop&q=80'}
                     alt={doctor.name}
-                    className="w-16 h-16 rounded-2xl object-cover border border-slate-100 shadow-xs"
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl object-cover border border-slate-100 shadow-xs shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap gap-1">
