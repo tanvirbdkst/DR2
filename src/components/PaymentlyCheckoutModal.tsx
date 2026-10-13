@@ -237,7 +237,15 @@ export const PaymentlyCheckoutModal: React.FC<PaymentlyCheckoutModalProps> = ({
       window.location.href = 'bkash://';
     } else {
       if (booking.paymentUrl) {
-        window.open(booking.paymentUrl, '_blank', 'noopener,noreferrer');
+        try {
+          if (window.top && window.top !== window) {
+            window.top.location.href = booking.paymentUrl;
+          } else {
+            window.location.href = booking.paymentUrl;
+          }
+        } catch {
+          window.location.href = booking.paymentUrl;
+        }
       }
     }
   };
@@ -247,7 +255,15 @@ export const PaymentlyCheckoutModal: React.FC<PaymentlyCheckoutModalProps> = ({
    */
   const handleOpenPaymentlyWeb = () => {
     if (booking.paymentUrl) {
-      window.open(booking.paymentUrl, '_blank', 'noopener,noreferrer');
+      try {
+        if (window.top && window.top !== window) {
+          window.top.location.href = booking.paymentUrl;
+        } else {
+          window.location.href = booking.paymentUrl;
+        }
+      } catch {
+        window.location.href = booking.paymentUrl;
+      }
     }
   };
 

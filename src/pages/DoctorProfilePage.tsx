@@ -191,7 +191,21 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
         return;
       }
 
-      // Present the Paymently bKash Checkout Modal with "Open bKash to Send Money" and TrxID verification
+      // If paymentUrl is returned by Paymently, navigate directly to the Paymently Hosted Checkout page
+      if (data.paymentUrl) {
+        try {
+          if (window.top && window.top !== window) {
+            window.top.location.href = data.paymentUrl;
+          } else {
+            window.location.href = data.paymentUrl;
+          }
+        } catch {
+          window.location.href = data.paymentUrl;
+        }
+        return;
+      }
+
+      // Fallback: If gateway does not provide direct paymentUrl, present Paymently Checkout Modal
       const chamberObj = chambers.find((c) => c.id === selectedChamberId);
       const slotTime = serials.find((s) => s.serial_number === selectedSerial)?.estimated_time || '10:00 AM';
 
