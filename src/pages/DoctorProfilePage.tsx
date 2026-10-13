@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext.js';
 import { DoctorProfile, Chamber, Schedule, SerialSlot } from '../types.js';
 import { DoctorShareModal } from '../components/DoctorShareModal.js';
+import { PaymentlyCheckoutModal, BookingCheckoutInfo } from '../components/PaymentlyCheckoutModal.js';
 import { getDoctorProfileUrl } from '../config/api.js';
 
 interface DoctorProfilePageProps {
@@ -26,6 +27,10 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
   // Sharing state
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Paymently Checkout modal state
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [pendingCheckoutData, setPendingCheckoutData] = useState<BookingCheckoutInfo | null>(null);
 
   // Booking widget state
   const [selectedChamberId, setSelectedChamberId] = useState<number | null>(null);
@@ -186,14 +191,27 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
         return;
       }
 
-      // If gateway returned checkout URL, redirect patient to Paymently
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl;
-        return;
-      }
+      // Present the Paymently bKash Checkout Modal with "Open bKash to Send Money" and TrxID verification
+      const chamberObj = chambers.find((c) => c.id === selectedChamberId);
+      const slotTime = serials.find((s) => s.serial_number === selectedSerial)?.estimated_time || '10:00 AM';
 
-      // Fallback: direct confirmation
-      onBookingSuccess(data);
+      setPendingCheckoutData({
+        doctorName: doctor?.name || 'Doctor',
+        doctorTitle: doctor?.title || 'Dr.',
+        chamberName: chamberObj?.name || 'Chamber',
+        scheduleDate: selectedDate,
+        appointmentTime: slotTime,
+        serialNumber: selectedSerial,
+        patientName,
+        patientPhone,
+        fee: doctor?.consultation_fee || 0,
+        bookingFee: 10.00,
+        appointmentId: data.appointmentId,
+        transactionRef: data.transactionRef,
+        paymentUrl: data.paymentUrl,
+        invoiceId: data.invoiceId,
+      });
+      setIsCheckoutModalOpen(true);
     } catch (err: any) {
       setBookingError(err.message || 'Network error during checkout initiation.');
     } finally {
@@ -891,6 +909,60 @@ export const DoctorProfilePage: React.FC<DoctorProfilePageProps> = ({ doctorId, 
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
           doctor={doctor}
+        />
+      )}
+
+      {pendingCheckoutData && (
+        <PaymentlyCheckoutModal
+          isOpen={isCheckoutModalOpen}
+          onClose={() => setIsCheckoutModalOpen(false)}
+          booking={pendingCheckoutData}
+          language={lang as 'en' | 'bn'}
+          onPaymentSuccess={(payData) => {
+            setIsCheckoutModalOpen(false);
+            onBookingSuccess({
+              ...payData,
+              serialNumber: payData.serialNumber < 10 ? `0${payData.serialNumber}` : `${payData.serialNumber}`,
+              appointmentId: payData.appointmentId,
+              paymentStatus: 'paid',
+              bookingFee: 10,
+              transactionRef: payData.transactionRef,
+              details: {
+                doctorName: pendingCheckoutData.doctorName,
+                chamberName: pendingCheckoutData.chamberName,
+                chamberAddress: '',
+                scheduleDate: pendingCheckoutData.scheduleDate,
+                appointmentTime: pendingCheckoutData.appointmentTime,
+                consultationFee: pendingCheckoutData.fee,
+                patientName: pendingCheckoutData.patientName,
+                patientPhone: pendingCheckoutData.patientPhone,
+                status: 'confirmed',
+              },
+            });
+          }}
+          onPendingVerification={(pendingData) => {
+            setIsCheckoutModalOpen(false);
+            onBookingSuccess({
+              ...pendingData,
+              serialNumber: pendingData.serialNumber < 10 ? `0${pendingData.serialNumber}` : `${pendingData.serialNumber}`,
+              appointmentId: pendingData.appointmentId,
+              paymentStatus: 'pending',
+              isPendingVerification: true,
+              bookingFee: 10,
+              transactionRef: pendingData.submittedTrxId || pendingCheckoutData.transactionRef,
+              details: {
+                doctorName: pendingCheckoutData.doctorName,
+                chamberName: pendingCheckoutData.chamberName,
+                chamberAddress: '',
+                scheduleDate: pendingCheckoutData.scheduleDate,
+                appointmentTime: pendingCheckoutData.appointmentTime,
+                consultationFee: pendingCheckoutData.fee,
+                patientName: pendingCheckoutData.patientName,
+                patientPhone: pendingCheckoutData.patientPhone,
+                status: 'pending_payment',
+              },
+            });
+          }}
         />
       )}
     </div>

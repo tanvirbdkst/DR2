@@ -384,6 +384,7 @@ router.post('/initiate', async (req: Request, res: Response) => {
     success: true,
     message: 'Payment checkout initiated successfully',
     paymentUrl: chargeResult.paymentUrl,
+    invoiceId: chargeResult.invoiceId || null,
     transactionRef,
     appointmentId,
     bookingFee: BOOKING_FEE_BDT,
@@ -776,7 +777,238 @@ router.post('/paymently/webhook', async (req: Request, res: Response) => {
 });
 
 /**
- * 5. Check Transaction Status
+ * 5. Submit bKash Transaction ID (TrxID) for Verification
+ * POST /api/payments/submit-trxid
+ * Requirements:
+ * - Never mark paid merely because a TrxID was entered
+ * - Use verified Paymently API if supported; otherwise leave pending for admin verification
+ */
+router.post('/submit-trxid', async (req: Request, res: Response) => {
+  const { transactionRef, appointmentId, trxId, invoiceId } = req.body;
+
+  if (!trxId || typeof trxId !== 'string' || trxId.trim().length < 6) {
+    return res.status(400).json({
+      error: 'INVALID_TRXID',
+      message: 'Please provide a valid bKash Transaction ID (at least 6-8 characters, e.g., 9J38SDF2).',
+      message_bn: 'অনুগ্রহ করে সঠিক বিকাশ ট্রানজেকশন আইডি (TrxID) লিখুন (কমপক্ষে ৬-৮ ডিজিট/অক্ষর)।',
+    });
+  }
+
+  const cleanTrxId = trxId.trim().toUpperCase();
+
+  // Find appointment and payment
+  let querySql = `
+    SELECT a.*, p.id as payment_pk, p.status as payment_status_val, p.gateway_response, p.transaction_id as pmt_tx_id
+    FROM appointments a
+    LEFT JOIN payments p ON p.appointment_id = a.id
+    WHERE 1=1
+  `;
+  const params: any[] = [];
+  if (transactionRef) {
+    querySql += ` AND (a.transaction_ref = ? OR p.transaction_id = ?)`;
+    params.push(transactionRef, transactionRef);
+  } else if (appointmentId) {
+    querySql += ` AND a.appointment_id = ?`;
+    params.push(appointmentId);
+  } else {
+    return res.status(400).json({
+      error: 'MISSING_REFERENCE',
+      message: 'transactionRef or appointmentId is required.',
+    });
+  }
+
+  const [rows] = await pool.query<RowDataPacket[]>(querySql, params);
+  if (rows.length === 0) {
+    return res.status(404).json({
+      error: 'NOT_FOUND',
+      message: 'No pending booking found for this reference.',
+    });
+  }
+
+  const appt = rows[0] as any;
+
+  // 1. If already paid, return confirmed immediately
+  if (appt.payment_status === 'paid' || appt.payment_status_val === 'paid') {
+    return res.json({
+      success: true,
+      verified: true,
+      status: 'paid',
+      message: 'Payment already verified and confirmed!',
+      message_bn: 'পেমেন্ট ইতিমধ্যে যাচাই ও নিশ্চিত হয়েছে!',
+      appointmentId: appt.appointment_id,
+      transactionRef: appt.transaction_ref,
+      bookingFee: BOOKING_FEE_BDT,
+    });
+  }
+
+  // 2. Try official Paymently server-side verification if invoiceId exists or was stored
+  let verifiedByGateway = false;
+  let verifyResult: any = null;
+  const targetInvoiceId = invoiceId || (() => {
+    try {
+      const parsed = JSON.parse(appt.gateway_response || '{}');
+      return parsed.invoiceId || parsed.gateway_invoice_id || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (targetInvoiceId && isPaymentlyConfigured()) {
+    try {
+      verifyResult = await verifyPayment(targetInvoiceId);
+      if (
+        verifyResult.success &&
+        verifyResult.status === 'COMPLETED' &&
+        (verifyResult.amount === undefined || verifyResult.amount >= BOOKING_FEE_BDT)
+      ) {
+        verifiedByGateway = true;
+      }
+    } catch (e: any) {
+      console.warn('[submit-trxid] Gateway verification attempt notice:', e.message);
+    }
+  }
+
+  // 3. Update database based on verification result:
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    if (verifiedByGateway) {
+      // Gateway verified! Mark paid and confirmed
+      if (appt.payment_pk) {
+        await conn.execute(`
+          UPDATE payments
+          SET status = 'paid',
+              method = 'bkash',
+              gateway_response = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [
+          JSON.stringify({
+            invoiceId: targetInvoiceId,
+            submittedTrxId: cleanTrxId,
+            gatewayTxnId: verifyResult?.transactionId || cleanTrxId,
+            verifiedAt: new Date().toISOString(),
+            raw: verifyResult?.rawResponse || {},
+          }),
+          appt.payment_pk,
+        ]);
+      }
+
+      await conn.execute(`
+        UPDATE appointments
+        SET status = 'confirmed',
+            payment_status = 'paid',
+            payment_method = 'Paymently (bKash)',
+            transaction_ref = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [cleanTrxId, appt.id]);
+
+      await conn.commit();
+
+      // Trigger notification
+      notifyBookingSuccess({
+        appointmentId: appt.appointment_id,
+        serialNumber: appt.serial_number,
+        appointmentTime: appt.appointment_time,
+        scheduleDate: appt.schedule_date,
+        doctorId: appt.doctor_id,
+        doctorName: appt.doctor_name || 'Doctor',
+        doctorTitle: appt.doctor_title || 'Dr.',
+        chamberId: appt.chamber_id,
+        chamberName: appt.chamber_name || 'Chamber',
+        patientName: appt.patient_name,
+        patientPhone: appt.patient_phone,
+        fee: appt.fee,
+        bookingSource: 'online',
+      }).catch(() => {});
+
+      await logActivity(
+        null,
+        'TRXID_VERIFIED_AUTOMATIC',
+        `TrxID ${cleanTrxId} verified via Paymently for appointment ${appt.appointment_id}`
+      );
+
+      return res.json({
+        success: true,
+        verified: true,
+        status: 'paid',
+        message: 'Payment verified successfully! Your serial has been confirmed.',
+        message_bn: 'পেমেন্ট সফলভাবে যাচাই হয়েছে! আপনার সিরিয়াল নিশ্চিত করা হয়েছে।',
+        appointmentId: appt.appointment_id,
+        transactionRef: cleanTrxId,
+        serialNumber: appt.serial_number,
+        scheduleDate: appt.schedule_date,
+        appointmentTime: appt.appointment_time,
+      });
+    } else {
+      // Gateway did not automatically verify (or manual Send Money was used).
+      // CRITICAL REQUIREMENT 5: NEVER mark paid merely because TrxID was entered!
+      // Keep pending for admin / gateway verification.
+      let existingGatewayData: any = {};
+      try {
+        existingGatewayData = JSON.parse(appt.gateway_response || '{}');
+      } catch {}
+
+      const updatedGatewayData = {
+        ...existingGatewayData,
+        submittedTrxId: cleanTrxId,
+        submittedAt: new Date().toISOString(),
+        verificationStatus: 'pending_admin_approval',
+        invoiceId: targetInvoiceId || existingGatewayData.invoiceId,
+      };
+
+      if (appt.payment_pk) {
+        await conn.execute(`
+          UPDATE payments
+          SET method = 'bkash',
+              gateway_response = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [JSON.stringify(updatedGatewayData), appt.payment_pk]);
+      }
+
+      await conn.execute(`
+        UPDATE appointments
+        SET transaction_ref = ?,
+            payment_method = 'bKash (Pending Verification)',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [cleanTrxId, appt.id]);
+
+      await conn.commit();
+
+      await logActivity(
+        null,
+        'TRXID_SUBMITTED_PENDING',
+        `TrxID ${cleanTrxId} submitted for appointment ${appt.appointment_id} (Held for Admin / Gateway Verification)`
+      );
+
+      return res.json({
+        success: true,
+        verified: false,
+        status: 'pending',
+        message: 'Your TrxID has been received and is pending verification. Our team will verify and confirm your serial shortly.',
+        message_bn: 'আপনার ট্রানজেকশন আইডি (TrxID) জমা হয়েছে এবং যাচাইয়ের জন্য অপেক্ষমাণ। আমাদের টিম যাচাই করে দ্রুত সিরিয়াল নিশ্চিত করবে।',
+        appointmentId: appt.appointment_id,
+        submittedTrxId: cleanTrxId,
+        serialNumber: appt.serial_number,
+        scheduleDate: appt.schedule_date,
+        appointmentTime: appt.appointment_time,
+      });
+    }
+  } catch (err: any) {
+    await conn.rollback();
+    console.error('[submit-trxid] Error:', err);
+    return res.status(500).json({ error: 'DB_ERROR', message: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+/**
+ * 6. Check Transaction Status
  * GET /api/payments/status/:transactionRef
  */
 router.get('/status/:transactionRef', async (req: Request, res: Response) => {
@@ -816,6 +1048,12 @@ router.get('/status/:transactionRef', async (req: Request, res: Response) => {
     const item = rows[0] as any;
     const finalStatus = item.payment_status || (item.appointment_payment_status === 'paid' ? 'paid' : 'pending');
 
+    let submittedTrxId: string | null = null;
+    try {
+      const parsed = JSON.parse(item.gateway_response || '{}');
+      submittedTrxId = parsed.submittedTrxId || null;
+    } catch {}
+
     return res.json({
       success: true,
       transactionRef: item.transaction_ref || item.transaction_id,
@@ -829,6 +1067,7 @@ router.get('/status/:transactionRef', async (req: Request, res: Response) => {
       scheduleDate: item.schedule_date,
       appointmentTime: item.appointment_time,
       consultationFee: item.consultation_fee,
+      submittedTrxId,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

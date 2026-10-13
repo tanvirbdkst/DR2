@@ -5,6 +5,7 @@ import { requireRole } from '../auth.js';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { ensureDistrictsTableInDb, BANGLADESH_DISTRICTS } from '../districts.js';
 import { ensureSchemaInDatabase } from '../schemaMigration.js';
+import { notifyBookingSuccess } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -1217,6 +1218,85 @@ router.post('/live-queue/status', async (req, res) => {
     }
 
     res.json({ success: true, message: `Serial #${appt.serial_number} status updated to ${status}` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin manual verification of pending bKash / Paymently transaction
+router.post('/appointments/:id/confirm-payment', async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const appointmentId = Number(req.params.id);
+
+    const [apptRows] = await pool.query<RowDataPacket[]>(`
+      SELECT a.*, d.title as doctor_title, u.name as doctor_name, c.name as chamber_name
+      FROM appointments a
+      JOIN doctors d ON a.doctor_id = d.id
+      JOIN users u ON d.user_id = u.id
+      JOIN chambers c ON a.chamber_id = c.id
+      WHERE a.id = ?
+    `, [appointmentId]);
+
+    if (apptRows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    const appt = apptRows[0] as any;
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      await conn.execute(`
+        UPDATE appointments
+        SET status = 'confirmed',
+            payment_status = 'paid',
+            payment_method = 'bKash (Admin Verified)',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [appointmentId]);
+
+      await conn.execute(`
+        UPDATE payments
+        SET status = 'paid',
+            method = 'bkash',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE appointment_id = ?
+      `, [appointmentId]);
+
+      await conn.commit();
+    } catch (err: any) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    notifyBookingSuccess({
+      appointmentId: appt.appointment_id,
+      serialNumber: appt.serial_number,
+      appointmentTime: appt.appointment_time,
+      scheduleDate: appt.schedule_date,
+      doctorId: appt.doctor_id,
+      doctorName: appt.doctor_name,
+      doctorTitle: appt.doctor_title,
+      chamberId: appt.chamber_id,
+      chamberName: appt.chamber_name,
+      patientName: appt.patient_name,
+      patientPhone: appt.patient_phone,
+      fee: appt.fee,
+      bookingSource: 'online',
+    }).catch(() => {});
+
+    if (adminUser?.id) {
+      await logActivity(
+        adminUser.id,
+        'PAYMENT_ADMIN_CONFIRMED',
+        `Admin confirmed payment for appointment ${appt.appointment_id} (TXN: ${appt.transaction_ref})`
+      );
+    }
+
+    res.json({ success: true, message: `Payment for appointment ${appt.appointment_id} confirmed successfully.` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

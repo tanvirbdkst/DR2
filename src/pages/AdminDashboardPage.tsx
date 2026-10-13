@@ -500,6 +500,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   };
 
+  // Admin Manual Payment Verification & Confirmation
+  const handleConfirmAdminPayment = async (appointmentId: number, patientName: string) => {
+    if (!window.confirm(`Verify and confirm booking payment for ${patientName}?`)) return;
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/admin/appointments/${appointmentId}/confirm-payment`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to confirm payment.');
+      await loadAdminData();
+    } catch (err: any) {
+      alert(err.message || 'Error confirming payment.');
+    }
+  };
+
   const handleAddQuickContact = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newContactForm.title || !newContactForm.number) return;
@@ -1766,14 +1787,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <th className="px-4 py-3">Doctor & Specialty</th>
                   <th className="px-4 py-3">Chamber</th>
                   <th className="px-4 py-3">Schedule Date</th>
-                  <th className="px-4 py-3">Fee</th>
-                  <th className="px-4 py-3 text-right">Status</th>
+                  <th className="px-4 py-3">Visit Fee</th>
+                  <th className="px-4 py-3">Booking Fee & TrxID</th>
+                  <th className="px-4 py-3 text-right">Status / Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {filteredAppointments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-slate-400 text-xs">
+                    <td colSpan={8} className="text-center py-8 text-slate-400 text-xs">
                       {appointments.length === 0 ? 'No serial bookings in database yet.' : 'No matching bookings found.'}
                     </td>
                   </tr>
@@ -1799,8 +1821,42 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       <td className="px-4 py-3 font-mono text-slate-600">
                         {a.schedule_date?.split('T')[0] || a.schedule_date}
                       </td>
-                      <td className="px-4 py-3 font-bold text-emerald-700">
-                        ৳{a.consultation_fee}
+                      <td className="px-4 py-3 font-bold text-slate-800">
+                        ৳{a.consultation_fee ?? a.fee}
+                      </td>
+                      <td className="px-4 py-3">
+                        {a.payment_status === 'paid' ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              ৳10.00 PAID
+                            </span>
+                            {a.transaction_ref && (
+                              <p className="text-[10px] font-mono text-slate-500 truncate max-w-[120px]" title={a.transaction_ref}>
+                                {a.transaction_ref}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              ৳10.00 {a.transaction_ref ? 'TRXID SUBMITTED' : 'UNPAID'}
+                            </span>
+                            {a.transaction_ref && (
+                              <p className="text-[10px] font-mono font-bold text-slate-800 truncate max-w-[120px]" title={a.transaction_ref}>
+                                Trx: {a.transaction_ref}
+                              </p>
+                            )}
+                            {a.payment_status !== 'paid' && a.transaction_ref && (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmAdminPayment(a.id, a.patient_name)}
+                                className="block px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow-2xs transition cursor-pointer"
+                              >
+                                Verify & Confirm
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span
@@ -1809,6 +1865,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               ? 'bg-emerald-50 text-emerald-700'
                               : a.status === 'completed'
                               ? 'bg-blue-50 text-blue-700'
+                              : a.status === 'pending_payment'
+                              ? 'bg-amber-50 text-amber-700'
                               : 'bg-rose-50 text-rose-700'
                           }`}
                         >

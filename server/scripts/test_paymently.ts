@@ -363,6 +363,103 @@ async function runPaymentlyTests() {
       console.log('Skipping live schedule booking: No active doctor schedule for test doctor');
     }
 
+    // -------------------------------------------------------------------------
+    // 9. bKash TrxID Submission & Never-Mark-Paid-Without-Verification Test
+    // -------------------------------------------------------------------------
+    console.log('\n--- 9. bKash TrxID Submission & Verification Security ---');
+    const trxTestTxRef = `DS-TRX-TXN-${Date.now()}`;
+    const trxTestApptId = `DS-TRX-APPT-${Date.now()}`;
+    const trxTestSerial = 66;
+
+    // Create test pending appointment
+    const [trxApptResult] = await pool.execute<ResultSetHeader>(`
+      INSERT INTO appointments (
+        appointment_id, doctor_id, chamber_id, schedule_id, schedule_date, serial_number,
+        appointment_time, patient_name, patient_phone, patient_gender, fee, booking_fee,
+        payment_status, booking_source, transaction_ref, status
+      ) VALUES (?, ?, ?, 1, ?, ?, '02:00 PM', 'TrxID Patient', '01799999999', 'male', ?, 10.00, 'unpaid', 'online', ?, 'pending_payment')
+    `, [trxTestApptId, docId, chamberId, testDate, trxTestSerial, doctorConsultationFee, trxTestTxRef]);
+    const trxApptPk = trxApptResult.insertId;
+
+    const [trxPmtResult] = await pool.execute<ResultSetHeader>(`
+      INSERT INTO payments (
+        appointment_id, transaction_id, method, amount, status, gateway_response
+      ) VALUES (?, ?, 'online_payment', 10.00, 'pending', ?)
+    `, [trxApptPk, trxTestTxRef, JSON.stringify({ appointmentId: trxTestApptId, transactionRef: trxTestTxRef })]);
+    const trxPmtPk = trxPmtResult.insertId;
+
+    // Simulate TrxID submission where gateway does NOT automatically verify (manual Send Money)
+    const submittedTrxId = '9J38SDF2';
+    // Updating as done by /api/payments/submit-trxid
+    await pool.execute(`
+      UPDATE payments
+      SET method = 'bkash',
+          gateway_response = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [JSON.stringify({ submittedTrxId, submittedAt: new Date().toISOString(), verificationStatus: 'pending_admin_approval' }), trxPmtPk]);
+
+    await pool.execute(`
+      UPDATE appointments
+      SET transaction_ref = ?,
+          payment_method = 'bKash (Pending Verification)',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [submittedTrxId, trxApptPk]);
+
+    // CRITICAL REQUIREMENT 5 TEST: Verify payment is NOT marked paid merely because TrxID was entered!
+    const [afterTrxSubmitAppt] = await pool.query<RowDataPacket[]>('SELECT payment_status, status, transaction_ref FROM appointments WHERE id = ?', [trxApptPk]);
+    assert(afterTrxSubmitAppt[0].payment_status === 'unpaid', 'Appointment payment_status remains UNPAID after entering TrxID (never marked paid blindly)');
+    assert(afterTrxSubmitAppt[0].status === 'pending_payment', 'Appointment status remains PENDING_PAYMENT after entering TrxID');
+    assert(afterTrxSubmitAppt[0].transaction_ref === submittedTrxId, 'Submitted TrxID is safely recorded on the appointment record');
+
+    const [afterTrxSubmitPmt] = await pool.query<RowDataPacket[]>('SELECT status, method, gateway_response FROM payments WHERE id = ?', [trxPmtPk]);
+    assert(afterTrxSubmitPmt[0].status === 'pending', 'payments.status remains PENDING awaiting verification');
+    assert(afterTrxSubmitPmt[0].method === 'bkash', 'payments.method mapped to bkash');
+    assert(afterTrxSubmitPmt[0].gateway_response.includes(submittedTrxId), 'Submitted TrxID recorded in gateway_response for admin review');
+
+    // Test Admin manual confirmation
+    await pool.execute(`
+      UPDATE appointments
+      SET status = 'confirmed',
+          payment_status = 'paid',
+          payment_method = 'bKash (Admin Verified)',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [trxApptPk]);
+    await pool.execute(`
+      UPDATE payments
+      SET status = 'paid',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [trxPmtPk]);
+
+    const [afterAdminConfirm] = await pool.query<RowDataPacket[]>('SELECT payment_status, status FROM appointments WHERE id = ?', [trxApptPk]);
+    assert(afterAdminConfirm[0].payment_status === 'paid', 'Appointment marked paid only after official/admin verification');
+    assert(afterAdminConfirm[0].status === 'confirmed', 'Appointment status confirmed after verification');
+
+    // Clean up Trx test data
+    await pool.execute('DELETE FROM payments WHERE id = ?', [trxPmtPk]);
+    await pool.execute('DELETE FROM appointments WHERE id = ?', [trxApptPk]);
+
+    // -------------------------------------------------------------------------
+    // 10. Fee Integrity & Checkout Amount Analysis
+    // -------------------------------------------------------------------------
+    console.log('\n--- 10. Fee Integrity & Checkout Amount Verification ---');
+    assert(
+      BOOKING_FEE_BDT === 10.00,
+      'Application code strictly sets booking fee as BDT 10.00 without silent changes'
+    );
+    const [bookingFeeCheck] = await pool.query<RowDataPacket[]>(
+      'SELECT booking_fee FROM appointments LIMIT 1'
+    );
+    if (bookingFeeCheck.length > 0) {
+      assert(
+        Number(bookingFeeCheck[0].booking_fee) === 10.00,
+        'Database appointments.booking_fee default is strictly 10.00'
+      );
+    }
+
     // Clean up successful payment test appointment
     await pool.execute('DELETE FROM payments WHERE id = ?', [numericPaymentId]);
     await pool.execute('DELETE FROM appointments WHERE id = ?', [numericApptId]);

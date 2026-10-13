@@ -110,13 +110,28 @@ export const BookingConfirmationPage: React.FC<BookingConfirmationPageProps> = (
                   <p className="text-slate-400 text-xs font-semibold uppercase">{t('Online Booking Fee', 'অনলাইন সিরিয়াল ফি')}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-sm font-bold text-emerald-700">৳10.00</span>
-                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      PAID (পরিশোধিত)
-                    </span>
+                    {bookingData.paymentStatus === 'paid' ? (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        {t('PAID (পরিশোধিত)', 'পরিশোধিত (PAID)')}
+                      </span>
+                    ) : (bookingData as any).isPendingVerification || bookingData.paymentStatus === 'pending' ? (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        {t('VERIFICATION PENDING', 'যাচাই অপেক্ষমাণ')}
+                      </span>
+                    ) : (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                        {t('UNPAID', 'অপরিশোধিত')}
+                      </span>
+                    )}
                   </div>
                   {bookingData.transactionRef && (
-                    <p className="text-[10px] font-mono text-slate-500 truncate" title={bookingData.transactionRef}>
-                      TXN: {bookingData.transactionRef}
+                    <p className="text-[10px] font-mono text-slate-500 truncate mt-0.5" title={bookingData.transactionRef}>
+                      TrxID / Ref: {bookingData.transactionRef}
+                    </p>
+                  )}
+                  {(bookingData as any).isPendingVerification && (
+                    <p className="text-[10px] text-amber-700 font-medium mt-1">
+                      {t('TrxID submitted. Your serial is reserved while our team or gateway verifies the payment.', 'TrxID জমা হয়েছে। যাচাই চলাকালীন আপনার সিরিয়ালটি সংরক্ষিত থাকবে।')}
                     </p>
                   )}
                 </div>
