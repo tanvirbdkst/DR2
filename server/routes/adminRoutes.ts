@@ -6,6 +6,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { ensureDistrictsTableInDb, BANGLADESH_DISTRICTS } from '../districts.js';
 import { ensureSchemaInDatabase } from '../schemaMigration.js';
 import { notifyBookingSuccess } from '../services/notificationService.js';
+import { safePaymentMethodEnum } from '../services/paymentlyService.js';
 
 const router = Router();
 
@@ -1243,6 +1244,23 @@ router.post('/appointments/:id/confirm-payment', async (req, res) => {
     }
     const appt = apptRows[0] as any;
 
+    // Detect submitted MFS method
+    let verifiedMethod = 'bkash';
+    let verifiedMethodLabel = 'bKash';
+    const existingPmtMethod = (appt.payment_method || '').toLowerCase();
+    if (existingPmtMethod.includes('nagad')) {
+      verifiedMethod = 'nagad';
+      verifiedMethodLabel = 'Nagad';
+    } else if (existingPmtMethod.includes('rocket')) {
+      verifiedMethod = 'rocket';
+      verifiedMethodLabel = 'Rocket';
+    } else if (existingPmtMethod.includes('upay')) {
+      verifiedMethod = 'upay';
+      verifiedMethodLabel = 'Upay';
+    }
+
+    const safeMethodEnum = safePaymentMethodEnum(verifiedMethod);
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -1251,18 +1269,37 @@ router.post('/appointments/:id/confirm-payment', async (req, res) => {
         UPDATE appointments
         SET status = 'confirmed',
             payment_status = 'paid',
-            payment_method = 'bKash (Admin Verified)',
+            payment_method = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [appointmentId]);
+      `, [`Paymently (${verifiedMethodLabel} - Admin Verified)`, appointmentId]);
+
+      // Preserve existing gateway response data and attach admin audit
+      const [pmtRows] = await conn.query<RowDataPacket[]>('SELECT gateway_response FROM payments WHERE appointment_id = ? LIMIT 1', [appointmentId]);
+      let currentGtwData: any = {};
+      try {
+        if (pmtRows.length > 0 && pmtRows[0].gateway_response) {
+          currentGtwData = JSON.parse(pmtRows[0].gateway_response);
+        }
+      } catch {}
+
+      const updatedAudit = {
+        ...currentGtwData,
+        verifiedByAdminId: adminUser?.id || null,
+        verifiedByAdminName: adminUser?.name || 'Admin',
+        verifiedAt: new Date().toISOString(),
+        method: verifiedMethod,
+        methodLabel: verifiedMethodLabel,
+      };
 
       await conn.execute(`
         UPDATE payments
         SET status = 'paid',
-            method = 'bkash',
+            method = ?,
+            gateway_response = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE appointment_id = ?
-      `, [appointmentId]);
+      `, [safeMethodEnum, JSON.stringify(updatedAudit), appointmentId]);
 
       await conn.commit();
     } catch (err: any) {

@@ -5,12 +5,17 @@ import {
   createPaymentCharge,
   verifyPayment,
   isPaymentlyConfigured,
+  getMfsMethodsConfig,
+  validateMethodTrxId,
+  safePaymentMethodEnum,
+  BOOKING_FEE_BDT,
+  GATEWAY_SURCHARGE_BDT,
+  TOTAL_PAYABLE_GATEWAY_BDT,
 } from '../services/paymentlyService.js';
 import { notifyBookingSuccess } from '../services/notificationService.js';
 import { sendHospitalWebhook } from '../services/hospitalIntegrationService.js';
 
 const router = Router();
-const BOOKING_FEE_BDT = 10.00;
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
@@ -102,6 +107,20 @@ export async function reconcileExpiredPendingPayments(): Promise<void> {
     console.warn('[PaymentReconcile] Non-fatal notice during stale reconciliation:', err.message);
   }
 }
+
+/**
+ * GET /api/payments/methods
+ * Returns active and supported MFS methods (bKash, Nagad, Rocket, Upay) based on Paymently configuration.
+ * Prevents misleading users by clearly indicating which methods are currently active in Paymently.
+ */
+router.get('/methods', (req: Request, res: Response) => {
+  const mfsConfig = getMfsMethodsConfig();
+  return res.json({
+    success: true,
+    configured: isPaymentlyConfigured(),
+    ...mfsConfig,
+  });
+});
 
 /**
  * 1. Initiate Checkout via Paymently Gateway
@@ -388,7 +407,10 @@ router.post('/initiate', async (req: Request, res: Response) => {
     transactionRef,
     appointmentId,
     bookingFee: BOOKING_FEE_BDT,
+    gatewayFee: GATEWAY_SURCHARGE_BDT,
+    totalPayable: TOTAL_PAYABLE_GATEWAY_BDT,
     currency: 'BDT',
+    methodsConfig: getMfsMethodsConfig(),
   });
 });
 
@@ -784,17 +806,39 @@ router.post('/paymently/webhook', async (req: Request, res: Response) => {
  * - Use verified Paymently API if supported; otherwise leave pending for admin verification
  */
 router.post('/submit-trxid', async (req: Request, res: Response) => {
-  const { transactionRef, appointmentId, trxId, invoiceId } = req.body;
+  const { transactionRef, appointmentId, trxId, invoiceId, method: reqMethod } = req.body;
 
-  if (!trxId || typeof trxId !== 'string' || trxId.trim().length < 6) {
+  const rawMethod = String(reqMethod || 'bkash').toLowerCase().trim();
+  const validMethods = ['bkash', 'nagad', 'rocket', 'upay'];
+  const methodId = (validMethods.includes(rawMethod) ? rawMethod : 'bkash') as 'bkash' | 'nagad' | 'rocket' | 'upay';
+
+  // 1. Method-specific Transaction ID format validation (Requirements 3 & 4)
+  const validation = validateMethodTrxId(methodId, trxId);
+  if (!validation.valid) {
     return res.status(400).json({
       error: 'INVALID_TRXID',
-      message: 'Please provide a valid bKash Transaction ID (at least 6-8 characters, e.g., 9J38SDF2).',
-      message_bn: 'অনুগ্রহ করে সঠিক বিকাশ ট্রানজেকশন আইডি (TrxID) লিখুন (কমপক্ষে ৬-৮ ডিজিট/অক্ষর)।',
+      message: validation.errorEn || 'Please provide a valid Transaction ID.',
+      message_bn: validation.errorBn || 'অনুগ্রহ করে সঠিক ট্রানজেকশন আইডি প্রদান করুন।',
     });
   }
 
-  const cleanTrxId = trxId.trim().toUpperCase();
+  const cleanTrxId = String(trxId).trim().toUpperCase();
+
+  // 2. Verify whether this method is currently active in Paymently account (Requirements 1 & 9)
+  const mfsConfig = getMfsMethodsConfig();
+  const isMethodActive = mfsConfig.enabledMethods.includes(methodId);
+  const chosenMethodInfo = mfsConfig.methods.find((m) => m.id === methodId);
+
+  if (!isMethodActive) {
+    return res.status(400).json({
+      error: 'METHOD_INACTIVE',
+      message: `${chosenMethodInfo?.name || methodId} is not active in your Paymently merchant account. Please select an active payment method.`,
+      message_bn: `${chosenMethodInfo?.nameBn || methodId} বর্তমানে Paymently মার্চেন্ট একাউন্টে সক্রিয় নেই। অনুগ্রহ করে সক্রিয় পেমেন্ট মেথড নির্বাচন করুন।`,
+      activationNotice: chosenMethodInfo?.activationNoticeBn,
+    });
+  }
+
+  const methodLabel = chosenMethodInfo?.name || (methodId === 'bkash' ? 'bKash' : methodId === 'nagad' ? 'Nagad' : methodId === 'rocket' ? 'Rocket' : 'Upay');
 
   // Find appointment and payment
   let querySql = `
@@ -827,7 +871,7 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
 
   const appt = rows[0] as any;
 
-  // 1. If already paid, return confirmed immediately
+  // 1. If already paid, return confirmed immediately (Idempotency)
   if (appt.payment_status === 'paid' || appt.payment_status_val === 'paid') {
     return res.json({
       success: true,
@@ -838,6 +882,7 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
       appointmentId: appt.appointment_id,
       transactionRef: appt.transaction_ref,
       bookingFee: BOOKING_FEE_BDT,
+      method: methodId,
     });
   }
 
@@ -873,21 +918,28 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
   try {
     await conn.beginTransaction();
 
+    const safeDbMethod = safePaymentMethodEnum(methodId);
+
     if (verifiedByGateway) {
       // Gateway verified! Mark paid and confirmed
+      const gatewayReportedMethod = verifyResult?.paymentMethod ? String(verifyResult.paymentMethod).toLowerCase() : methodId;
+      const finalSafeEnum = safePaymentMethodEnum(gatewayReportedMethod);
+
       if (appt.payment_pk) {
         await conn.execute(`
           UPDATE payments
           SET status = 'paid',
-              method = 'bkash',
+              method = ?,
               gateway_response = ?,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `, [
+          finalSafeEnum,
           JSON.stringify({
             invoiceId: targetInvoiceId,
             submittedTrxId: cleanTrxId,
             gatewayTxnId: verifyResult?.transactionId || cleanTrxId,
+            method: methodId,
             verifiedAt: new Date().toISOString(),
             raw: verifyResult?.rawResponse || {},
           }),
@@ -899,11 +951,11 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
         UPDATE appointments
         SET status = 'confirmed',
             payment_status = 'paid',
-            payment_method = 'Paymently (bKash)',
+            payment_method = ?,
             transaction_ref = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [cleanTrxId, appt.id]);
+      `, [`Paymently (${methodLabel})`, cleanTrxId, appt.id]);
 
       await conn.commit();
 
@@ -927,7 +979,7 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
       await logActivity(
         null,
         'TRXID_VERIFIED_AUTOMATIC',
-        `TrxID ${cleanTrxId} verified via Paymently for appointment ${appt.appointment_id}`
+        `TrxID ${cleanTrxId} verified via Paymently (${methodLabel}) for appointment ${appt.appointment_id}`
       );
 
       return res.json({
@@ -941,10 +993,11 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
         serialNumber: appt.serial_number,
         scheduleDate: appt.schedule_date,
         appointmentTime: appt.appointment_time,
+        method: methodId,
       });
     } else {
       // Gateway did not automatically verify (or manual Send Money was used).
-      // CRITICAL REQUIREMENT 5: NEVER mark paid merely because TrxID was entered!
+      // CRITICAL REQUIREMENT 6: NEVER mark paid merely because TrxID was entered!
       // Keep pending for admin / gateway verification.
       let existingGatewayData: any = {};
       try {
@@ -954,6 +1007,8 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
       const updatedGatewayData = {
         ...existingGatewayData,
         submittedTrxId: cleanTrxId,
+        method: methodId,
+        methodLabel,
         submittedAt: new Date().toISOString(),
         verificationStatus: 'pending_admin_approval',
         invoiceId: targetInvoiceId || existingGatewayData.invoiceId,
@@ -962,27 +1017,27 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
       if (appt.payment_pk) {
         await conn.execute(`
           UPDATE payments
-          SET method = 'bkash',
+          SET method = ?,
               gateway_response = ?,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `, [JSON.stringify(updatedGatewayData), appt.payment_pk]);
+        `, [safeDbMethod, JSON.stringify(updatedGatewayData), appt.payment_pk]);
       }
 
       await conn.execute(`
         UPDATE appointments
         SET transaction_ref = ?,
-            payment_method = 'bKash (Pending Verification)',
+            payment_method = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [cleanTrxId, appt.id]);
+      `, [cleanTrxId, `Paymently (${methodLabel} - Pending Verification)`, appt.id]);
 
       await conn.commit();
 
       await logActivity(
         null,
         'TRXID_SUBMITTED_PENDING',
-        `TrxID ${cleanTrxId} submitted for appointment ${appt.appointment_id} (Held for Admin / Gateway Verification)`
+        `TrxID ${cleanTrxId} (${methodLabel}) submitted for appointment ${appt.appointment_id} (Held for Admin / Gateway Verification)`
       );
 
       return res.json({
@@ -990,12 +1045,13 @@ router.post('/submit-trxid', async (req: Request, res: Response) => {
         verified: false,
         status: 'pending',
         message: 'Your TrxID has been received and is pending verification. Our team will verify and confirm your serial shortly.',
-        message_bn: 'আপনার ট্রানজেকশন আইডি (TrxID) জমা হয়েছে এবং যাচাইয়ের জন্য অপেক্ষমাণ। আমাদের টিম যাচাই করে দ্রুত সিরিয়াল নিশ্চিত করবে।',
+        message_bn: `আপনার ${methodLabel} ট্রানজেকশন আইডি (TrxID) জমা হয়েছে এবং যাচাইয়ের জন্য অপেক্ষমাণ। আমাদের টিম যাচাই করে দ্রুত সিরিয়াল নিশ্চিত করবে।`,
         appointmentId: appt.appointment_id,
         submittedTrxId: cleanTrxId,
         serialNumber: appt.serial_number,
         scheduleDate: appt.schedule_date,
         appointmentTime: appt.appointment_time,
+        method: methodId,
       });
     }
   } catch (err: any) {

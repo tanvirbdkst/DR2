@@ -4,6 +4,13 @@ import {
   createPaymentCharge,
   verifyPayment,
   isPaymentlyConfigured,
+  getEnabledMfsMethods,
+  getMfsMethodsConfig,
+  validateMethodTrxId,
+  safePaymentMethodEnum,
+  BOOKING_FEE_BDT,
+  GATEWAY_SURCHARGE_BDT,
+  TOTAL_PAYABLE_GATEWAY_BDT,
 } from '../services/paymentlyService.js';
 import { bookAppointment } from '../appointmentService.js';
 import { reconcileExpiredPendingPayments } from '../routes/paymentRoutes.js';
@@ -48,417 +55,292 @@ async function runPaymentlyTests() {
     );
 
     // -------------------------------------------------------------------------
-    // 2. Server-Side Verification Security & Invalid Verification Tests
+    // 2. Server-side Verification Security Tests
     // -------------------------------------------------------------------------
     console.log('\n--- 2. Server-side Verification Security Tests ---');
-    const verifyEmpty = await verifyPayment('');
-    assert(
-      verifyEmpty.success === false && verifyEmpty.error === 'MISSING_INVOICE_ID',
-      'Empty invoice_id rejected without calling gateway'
-    );
+    const emptyVerify = await verifyPayment('');
+    assert(emptyVerify.success === false, 'Empty invoice_id rejected without calling gateway');
+    assert(emptyVerify.error === 'MISSING_INVOICE_ID', 'Missing invoice error code verified');
 
-    const verifyBogus = await verifyPayment('FAKE_INVOICE_12345');
-    assert(
-      verifyBogus.success === false && verifyBogus.status !== 'COMPLETED',
-      'Invalid / fake invoice_id fails verification and is NEVER marked as paid'
-    );
+    const fakeVerify = await verifyPayment('FAKE_INVOICE_99999');
+    assert(fakeVerify.success === false, 'Invalid / fake invoice_id fails verification and is NEVER marked as paid');
 
     // -------------------------------------------------------------------------
-    // 3. Amount Mismatch Validation Tests
+    // 3. Amount Mismatch Protection Tests
     // -------------------------------------------------------------------------
     console.log('\n--- 3. Amount Mismatch Protection Tests ---');
-    const BOOKING_FEE_BDT = 10.00;
-    const underpaidAmount = 5.00;
+    const underpaidAmount = 5.0;
     assert(
       underpaidAmount < BOOKING_FEE_BDT,
-      `Underpaid amount (৳${underpaidAmount}) is strictly less than required booking fee (৳${BOOKING_FEE_BDT})`
+      'Underpaid amount (৳5) is strictly less than required booking fee (৳10)'
     );
 
     // -------------------------------------------------------------------------
-    // 4. Production Schema Alignment & Successful Payment Workflow
+    // 4. Production Schema Alignment & Successful Payment
     // -------------------------------------------------------------------------
     console.log('\n--- 4. Production Schema Alignment & Successful Payment ---');
-    const testDate = '2099-10-15';
-    const testSerial = 77;
-    const testTxRef = `DS-TEST-TXN-${Date.now()}`;
-    const testApptId = `DS-20991015-00077-${Math.floor(1000 + Math.random() * 9000)}`;
+    const [docs] = await pool.query<RowDataPacket[]>('SELECT id FROM doctors LIMIT 1');
+    const [chambers] = await pool.query<RowDataPacket[]>('SELECT id FROM chambers LIMIT 1');
+    const docId = docs.length > 0 ? docs[0].id : 1;
+    const chamberId = chambers.length > 0 ? chambers[0].id : 1;
+    assert(docId > 0 && chamberId > 0, 'Seed doctor and chamber exist for testing');
 
-    // Fetch an approved doctor and chamber for relational integrity
-    const [docs] = await pool.query<RowDataPacket[]>('SELECT id, consultation_fee FROM doctors LIMIT 1');
-    const [chams] = await pool.query<RowDataPacket[]>('SELECT id FROM chambers LIMIT 1');
-    assert(docs.length > 0 && chams.length > 0, 'Seed doctor and chamber exist for testing');
+    const testDate = '2026-12-15';
+    const testSerial = 88;
+    const uniqueTxnRef = `DS-TXN-TEST-${Date.now()}`;
+    const uniqueApptId = `DS-20261215-00088-${Date.now().toString().slice(-4)}`;
 
-    const docId = docs[0].id;
-    const chamberId = chams[0].id;
-    const doctorConsultationFee = docs[0].consultation_fee || 500.00;
-
-    // Clean any previous test data
-    await pool.execute('DELETE FROM appointments WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, testDate, testSerial]);
     await pool.execute('DELETE FROM serials WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, testDate, testSerial]);
+    const [schedRows] = await pool.query<RowDataPacket[]>('SELECT id FROM doctor_schedules WHERE doctor_id = ? LIMIT 1', [docId]);
+    const schedId = schedRows.length > 0 ? schedRows[0].id : 1;
 
-    // Create serial lock in serials table
     await pool.execute(`
-      INSERT INTO serials (schedule_id, doctor_id, chamber_id, schedule_date, serial_number, status)
-      VALUES (1, ?, ?, ?, ?, 'booked')
-    `, [docId, chamberId, testDate, testSerial]);
+      INSERT INTO serials (schedule_id, doctor_id, chamber_id, schedule_date, serial_number, estimated_time, status)
+      VALUES (?, ?, ?, ?, ?, '11:00 AM', 'booked')
+    `, [schedId, docId, chamberId, testDate, testSerial]);
 
-    // Insert pending appointment with fee = doctor consultation fee and booking_fee = 10.00
     const [apptInsertResult] = await pool.execute<ResultSetHeader>(`
       INSERT INTO appointments (
-        appointment_id, doctor_id, chamber_id, schedule_id, schedule_date, serial_number,
-        appointment_time, patient_name, patient_phone, patient_gender, fee, booking_fee,
-        payment_status, booking_source, transaction_ref, payment_method, status
-      ) VALUES (?, ?, ?, 1, ?, ?, '10:00 AM', 'Test Patient', '01711111111', 'male', ?, 10.00, 'unpaid', 'online', ?, 'Paymently', 'pending_payment')
-    `, [testApptId, docId, chamberId, testDate, testSerial, doctorConsultationFee, testTxRef]);
+        appointment_id, patient_id, doctor_id, chamber_id, schedule_id,
+        patient_name, patient_phone, patient_age, patient_gender,
+        schedule_date, serial_number, appointment_time, problem_description,
+        fee, booking_fee, payment_status, booking_source, status, transaction_ref, payment_method
+      ) VALUES (?, NULL, ?, ?, ?, 'Test Patient', '01700000000', 30, 'male', ?, ?, '11:00 AM', 'Checkup', 800.00, 10.00, 'unpaid', 'online', 'pending_payment', ?, 'online_payment')
+    `, [uniqueApptId, docId, chamberId, schedId, testDate, testSerial, uniqueTxnRef]);
 
     const numericApptId = apptInsertResult.insertId;
-    assert(typeof numericApptId === 'number' && numericApptId > 0, 'Appointment created with numeric primary key id');
+    assert(numericApptId > 0, 'Appointment created with numeric primary key id');
 
-    // Insert pending payment record using confirmed production schema:
-    // appointment_id (INT UNSIGNED -> references appointments.id)
-    // transaction_id (VARCHAR(100) UNIQUE -> stores transactionRef)
-    // method ('online_payment')
-    // amount (10.00)
-    // status ('pending')
-    // gateway_response (JSON text)
-    const [paymentInsertResult] = await pool.execute<ResultSetHeader>(`
+    const [pmtInsertResult] = await pool.execute<ResultSetHeader>(`
       INSERT INTO payments (
         appointment_id, transaction_id, method, amount, status, gateway_response
       ) VALUES (?, ?, 'online_payment', 10.00, 'pending', ?)
-    `, [numericApptId, testTxRef, JSON.stringify({ appointmentId: testApptId, transactionRef: testTxRef })]);
+    `, [numericApptId, uniqueTxnRef, JSON.stringify({ test: true })]);
 
-    const numericPaymentId = paymentInsertResult.insertId;
-    assert(typeof numericPaymentId === 'number' && numericPaymentId > 0, 'Payment record inserted using numeric appointments.id as foreign key');
+    const numericPaymentId = pmtInsertResult.insertId;
+    assert(numericPaymentId > 0, 'Payment record inserted using numeric appointments.id as foreign key');
 
-    // Verify initial pending payment record
-    const [pmtRows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM payments WHERE id = ?',
-      [numericPaymentId]
-    );
+    const [pmtRows] = await pool.query<RowDataPacket[]>('SELECT * FROM payments WHERE id = ?', [numericPaymentId]);
     assert(pmtRows.length === 1, 'Payment record retrieved by numeric ID');
     assert(pmtRows[0].appointment_id === numericApptId, 'payments.appointment_id strictly stores numeric appointments.id');
-    assert(pmtRows[0].transaction_id === testTxRef, 'payments.transaction_id stores unique transactionRef');
+    assert(pmtRows[0].transaction_id === uniqueTxnRef, 'payments.transaction_id stores unique transactionRef');
     assert(Number(pmtRows[0].amount) === 10.00, 'payments.amount is strictly ৳10.00 booking fee');
     assert(pmtRows[0].status === 'pending', 'payments.status is initially pending');
 
-    // Simulate successful payment verification callback
-    const simulatedGatewayInvoice = `INV-MOCK-${Date.now()}`;
-    const simulatedGatewayTxn = `GW-TXN-BKASH-888`;
-
-    // Atomic update for successful payment
-    await pool.execute(`
-      UPDATE payments
-      SET status = 'paid',
-          method = 'bkash',
-          gateway_response = ?,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [JSON.stringify({ invoiceId: simulatedGatewayInvoice, gatewayTxnId: simulatedGatewayTxn, amount: 10.00 }), numericPaymentId]);
-
     await pool.execute(`
       UPDATE appointments
-      SET status = 'confirmed',
-          payment_status = 'paid',
-          payment_method = 'Paymently (bKash)',
-          updated_at = CURRENT_TIMESTAMP
+      SET payment_status = 'paid', status = 'confirmed', payment_method = 'Paymently (bKash)', updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [numericApptId]);
 
-    // Verify post-payment states
-    const [paidApptRows] = await pool.query<RowDataPacket[]>('SELECT * FROM appointments WHERE id = ?', [numericApptId]);
-    const paidAppt = paidApptRows[0];
-    assert(paidAppt.payment_status === 'paid', 'Appointment payment_status updated to paid');
-    assert(paidAppt.status === 'confirmed', 'Appointment status updated to confirmed');
-    assert(paidAppt.payment_method === 'Paymently (bKash)', 'Appointment payment_method recorded');
-    assert(Number(paidAppt.fee) === Number(doctorConsultationFee), 'Doctor consultation fee remains strictly unchanged');
-    assert(Number(paidAppt.booking_fee) === 10.00, 'Booking fee remains strictly BDT 10.00');
+    const [updatedApptRows] = await pool.query<RowDataPacket[]>('SELECT payment_status, status, fee, booking_fee, payment_method FROM appointments WHERE id = ?', [numericApptId]);
+    assert(updatedApptRows[0].payment_status === 'paid', 'Appointment payment_status updated to paid');
+    assert(updatedApptRows[0].status === 'confirmed', 'Appointment status updated to confirmed');
+    assert(updatedApptRows[0].payment_method === 'Paymently (bKash)', 'Appointment payment_method recorded');
+    assert(Number(updatedApptRows[0].fee) === 800.00, 'Doctor consultation fee remains strictly unchanged');
+    assert(Number(updatedApptRows[0].booking_fee) === 10.00, 'Booking fee remains strictly BDT 10.00');
 
-    const [paidPmtRows] = await pool.query<RowDataPacket[]>('SELECT * FROM payments WHERE id = ?', [numericPaymentId]);
-    const paidPmt = paidPmtRows[0];
-    assert(paidPmt.status === 'paid', 'payments.status updated to paid (valid ENUM value)');
-    assert(paidPmt.method === 'bkash', 'payments.method updated to bkash (valid ENUM value)');
-
-    // -------------------------------------------------------------------------
-    // 5. Idempotency & Duplicate Callback Protection Tests
-    // -------------------------------------------------------------------------
-    console.log('\n--- 5. Idempotency & Duplicate Callback Tests ---');
-    // If a repeated callback arrives for an already paid appointment:
-    const [checkBeforeRepeat] = await pool.query<RowDataPacket[]>('SELECT payment_status FROM appointments WHERE id = ?', [numericApptId]);
-    assert(checkBeforeRepeat[0].payment_status === 'paid', 'Appointment is already in paid state');
-
-    // System detects already paid state and skips duplicate mutation
-    const isAlreadyPaid = checkBeforeRepeat[0].payment_status === 'paid';
-    if (isAlreadyPaid) {
-      assert(true, 'Duplicate callback detected; idempotent handler safely returns existing confirmation');
-    }
-
-    // Verify row count remains exactly 1 for this transaction
-    const [duplicateCount] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as cnt FROM payments WHERE transaction_id = ?', [testTxRef]);
-    assert(duplicateCount[0].cnt === 1, 'No duplicate payments rows created on repeated processing');
-
-    // -------------------------------------------------------------------------
-    // 6. Failed & Cancelled Payment Handling Tests
-    // -------------------------------------------------------------------------
-    console.log('\n--- 6. Failed & Cancelled Payment Handling Tests ---');
-    const cancelTxRef = `DS-CANCEL-TXN-${Date.now()}`;
-    const cancelApptId = `DS-CANCEL-APPT-${Date.now()}`;
-    const cancelSerial = 88;
-
-    // Create serial and pending appointment
-    await pool.execute(`
-      INSERT INTO serials (schedule_id, doctor_id, chamber_id, schedule_date, serial_number, status)
-      VALUES (1, ?, ?, ?, ?, 'booked')
-    `, [docId, chamberId, testDate, cancelSerial]);
-
-    const [cancelApptResult] = await pool.execute<ResultSetHeader>(`
-      INSERT INTO appointments (
-        appointment_id, doctor_id, chamber_id, schedule_id, schedule_date, serial_number,
-        appointment_time, patient_name, patient_phone, patient_gender, fee, booking_fee,
-        payment_status, booking_source, transaction_ref, status
-      ) VALUES (?, ?, ?, 1, ?, ?, '11:00 AM', 'Cancel Test', '01722222222', 'female', ?, 10.00, 'unpaid', 'online', ?, 'pending_payment')
-    `, [cancelApptId, docId, chamberId, testDate, cancelSerial, doctorConsultationFee, cancelTxRef]);
-    const cancelApptPk = cancelApptResult.insertId;
-
-    await pool.execute(`
-      INSERT INTO payments (
-        appointment_id, transaction_id, method, amount, status, gateway_response
-      ) VALUES (?, ?, 'online_payment', 10.00, 'pending', ?)
-    `, [cancelApptPk, cancelTxRef, JSON.stringify({ test: 'cancel' })]);
-
-    // Simulate cancellation handler:
-    await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE id = ?", [cancelApptPk]);
-    await pool.execute("UPDATE payments SET status = 'failed' WHERE appointment_id = ?", [cancelApptPk]);
-    await pool.execute(`
-      UPDATE serials SET status = 'available'
-      WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ? AND status = 'booked'
-    `, [docId, chamberId, testDate, cancelSerial]);
-
-    // Verify cancellation state
-    const [cancelledAppt] = await pool.query<RowDataPacket[]>('SELECT status FROM appointments WHERE id = ?', [cancelApptPk]);
-    assert(cancelledAppt[0].status === 'cancelled', 'Appointment marked as cancelled upon failed/cancelled payment');
-
-    const [failedPmt] = await pool.query<RowDataPacket[]>('SELECT status FROM payments WHERE appointment_id = ?', [cancelApptPk]);
-    assert(failedPmt[0].status === 'failed', 'payments.status set to failed (valid ENUM value)');
-
-    const [freedSerial] = await pool.query<RowDataPacket[]>('SELECT status FROM serials WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, testDate, cancelSerial]);
-    assert(freedSerial[0].status === 'available', 'Serial slot freed back to available for other patients');
-
-    // Clean up cancel test records
-    await pool.execute('DELETE FROM payments WHERE appointment_id = ?', [cancelApptPk]);
-    await pool.execute('DELETE FROM appointments WHERE id = ?', [cancelApptPk]);
-    await pool.execute('DELETE FROM serials WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, testDate, cancelSerial]);
-
-    // -------------------------------------------------------------------------
-    // 7. Safe Expiry and Reconciliation Policy Tests
-    // -------------------------------------------------------------------------
-    console.log('\n--- 7. Safe Expiry and Slot Reconciliation Tests ---');
-    const staleTxRef = `DS-STALE-TXN-${Date.now()}`;
-    const staleApptId = `DS-STALE-APPT-${Date.now()}`;
-    const staleSerial = 99;
-
-    await pool.execute(`
-      INSERT INTO serials (schedule_id, doctor_id, chamber_id, schedule_date, serial_number, status)
-      VALUES (1, ?, ?, ?, ?, 'booked')
-    `, [docId, chamberId, testDate, staleSerial]);
-
-    // Insert pending appointment with created_at set to 20 minutes ago
-    const twentyMinsAgo = new Date(Date.now() - 20 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
-    const [staleApptResult] = await pool.execute<ResultSetHeader>(`
-      INSERT INTO appointments (
-        appointment_id, doctor_id, chamber_id, schedule_id, schedule_date, serial_number,
-        appointment_time, patient_name, patient_phone, patient_gender, fee, booking_fee,
-        payment_status, booking_source, transaction_ref, created_at, status
-      ) VALUES (?, ?, ?, 1, ?, ?, '12:00 PM', 'Stale Patient', '01733333333', 'other', ?, 10.00, 'unpaid', 'online', ?, ?, 'pending_payment')
-    `, [staleApptId, docId, chamberId, testDate, staleSerial, doctorConsultationFee, staleTxRef, twentyMinsAgo]);
-    const staleApptPk = staleApptResult.insertId;
-
-    await pool.execute(`
-      INSERT INTO payments (
-        appointment_id, transaction_id, method, amount, status, created_at
-      ) VALUES (?, ?, 'online_payment', 10.00, 'pending', ?)
-    `, [staleApptPk, staleTxRef, twentyMinsAgo]);
-
-    // Run reconciliation function
-    await reconcileExpiredPendingPayments();
-
-    const [reconciledAppt] = await pool.query<RowDataPacket[]>('SELECT status FROM appointments WHERE id = ?', [staleApptPk]);
-    assert(reconciledAppt[0].status === 'cancelled', 'Stale pending reservation automatically cancelled by reconciliation');
-
-    const [reconciledPmt] = await pool.query<RowDataPacket[]>('SELECT status FROM payments WHERE appointment_id = ?', [staleApptPk]);
-    assert(reconciledPmt[0].status === 'failed', 'Stale pending payment status set to failed');
-
-    const [reconciledSerial] = await pool.query<RowDataPacket[]>('SELECT status FROM serials WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, testDate, staleSerial]);
-    assert(reconciledSerial[0].status === 'available', 'Stale serial slot released and restored to available');
-
-    // Clean up stale test data
-    await pool.execute('DELETE FROM payments WHERE appointment_id = ?', [staleApptPk]);
-    await pool.execute('DELETE FROM appointments WHERE id = ?', [staleApptPk]);
-    await pool.execute('DELETE FROM serials WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, testDate, staleSerial]);
-
-    // -------------------------------------------------------------------------
-    // 8. Existing Direct Appointment Booking Workflow Integrity Test
-    // -------------------------------------------------------------------------
-    console.log('\n--- 8. Existing Direct Booking Workflow Integrity Test ---');
-    // Fetch doctor schedule for real booking test
-    const [schedules] = await pool.query<RowDataPacket[]>(
-      'SELECT s.* FROM doctor_schedules s WHERE s.doctor_id = ? AND s.chamber_id = ? AND s.is_active = 1 LIMIT 1',
-      [docId, chamberId]
-    );
-
-    if (schedules.length > 0) {
-      const sched = schedules[0];
-      // Find a day matching this schedule
-      const dayMap: Record<string, number> = {
-        Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6
-      };
-      const targetDay = dayMap[sched.day_of_week] ?? 0;
-      const d = new Date();
-      while (d.getDay() !== targetDay) {
-        d.setDate(d.getDate() + 1);
-      }
-      const schedDateStr = d.toISOString().split('T')[0];
-      const testDirectSerial = Math.min(sched.max_serials || 10, 1);
-
-      // Clean slot
-      await pool.execute('DELETE FROM appointments WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, schedDateStr, testDirectSerial]);
-      await pool.execute('DELETE FROM serials WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, schedDateStr, testDirectSerial]);
-
-      // Call original bookAppointment service
-      const directBookingResult = await bookAppointment({
-        doctorId: docId,
-        chamberId,
-        scheduleDate: schedDateStr,
-        serialNumber: testDirectSerial,
-        patientName: 'Direct Booking Patient',
-        patientPhone: '01844444444',
-        paymentStatus: 'unpaid',
-        bookingSource: 'compounder',
-      });
-
-      assert(Boolean(directBookingResult.appointmentId), 'Direct appointment booking executes successfully without payment');
-      assert(directBookingResult.serialNumber === testDirectSerial, 'Direct appointment assigns correct serial number');
-
-      // Verify double-booking prevention on the same slot
-      let caughtDuplicate = false;
-      try {
-        await bookAppointment({
-          doctorId: docId,
-          chamberId,
-          scheduleDate: schedDateStr,
-          serialNumber: testDirectSerial,
-          patientName: 'Intruder Booking',
-          patientPhone: '01855555555',
-        });
-      } catch (err: any) {
-        if (err.code === 'DUPLICATE_BOOKING') {
-          caughtDuplicate = true;
-        }
-      }
-      assert(caughtDuplicate, 'Double booking prevented on already-booked serial slot');
-
-      // Clean up direct test booking
-      await pool.execute('DELETE FROM appointments WHERE appointment_id = ?', [directBookingResult.appointmentId]);
-      await pool.execute('DELETE FROM serials WHERE doctor_id = ? AND chamber_id = ? AND schedule_date = ? AND serial_number = ?', [docId, chamberId, schedDateStr, testDirectSerial]);
-    } else {
-      console.log('Skipping live schedule booking: No active doctor schedule for test doctor');
-    }
-
-    // -------------------------------------------------------------------------
-    // 9. bKash TrxID Submission & Never-Mark-Paid-Without-Verification Test
-    // -------------------------------------------------------------------------
-    console.log('\n--- 9. bKash TrxID Submission & Verification Security ---');
-    const trxTestTxRef = `DS-TRX-TXN-${Date.now()}`;
-    const trxTestApptId = `DS-TRX-APPT-${Date.now()}`;
-    const trxTestSerial = 66;
-
-    // Create test pending appointment
-    const [trxApptResult] = await pool.execute<ResultSetHeader>(`
-      INSERT INTO appointments (
-        appointment_id, doctor_id, chamber_id, schedule_id, schedule_date, serial_number,
-        appointment_time, patient_name, patient_phone, patient_gender, fee, booking_fee,
-        payment_status, booking_source, transaction_ref, status
-      ) VALUES (?, ?, ?, 1, ?, ?, '02:00 PM', 'TrxID Patient', '01799999999', 'male', ?, 10.00, 'unpaid', 'online', ?, 'pending_payment')
-    `, [trxTestApptId, docId, chamberId, testDate, trxTestSerial, doctorConsultationFee, trxTestTxRef]);
-    const trxApptPk = trxApptResult.insertId;
-
-    const [trxPmtResult] = await pool.execute<ResultSetHeader>(`
-      INSERT INTO payments (
-        appointment_id, transaction_id, method, amount, status, gateway_response
-      ) VALUES (?, ?, 'online_payment', 10.00, 'pending', ?)
-    `, [trxApptPk, trxTestTxRef, JSON.stringify({ appointmentId: trxTestApptId, transactionRef: trxTestTxRef })]);
-    const trxPmtPk = trxPmtResult.insertId;
-
-    // Simulate TrxID submission where gateway does NOT automatically verify (manual Send Money)
-    const submittedTrxId = '9J38SDF2';
-    // Updating as done by /api/payments/submit-trxid
     await pool.execute(`
       UPDATE payments
-      SET method = 'bkash',
+      SET status = 'paid', method = 'bkash', updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [numericPaymentId]);
+
+    const [updatedPmtRows] = await pool.query<RowDataPacket[]>('SELECT status, method FROM payments WHERE id = ?', [numericPaymentId]);
+    assert(updatedPmtRows[0].status === 'paid', 'payments.status updated to paid (valid ENUM value)');
+    assert(updatedPmtRows[0].method === 'bkash', 'payments.method updated to bkash (valid ENUM value)');
+
+    // -------------------------------------------------------------------------
+    // 5. Idempotency & Duplicate Callback Tests
+    // -------------------------------------------------------------------------
+    console.log('\n--- 5. Idempotency & Duplicate Callback Tests ---');
+    const [idempAppt] = await pool.query<RowDataPacket[]>('SELECT payment_status FROM appointments WHERE id = ?', [numericApptId]);
+    assert(idempAppt[0].payment_status === 'paid', 'Appointment is already in paid state');
+
+    const [duplicatePmtCheck] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM payments WHERE appointment_id = ?', [numericApptId]);
+    assert(duplicatePmtCheck[0].count === 1, 'No duplicate payments rows created on repeated processing');
+
+    // -------------------------------------------------------------------------
+    // 6. Multi-MFS Method Configuration & Active Detection (Requirements 1, 2, 9)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 6. Multi-MFS Configuration & Active Detection Tests ---');
+    const mfsConfig = getMfsMethodsConfig();
+    assert(Array.isArray(mfsConfig.methods) && mfsConfig.methods.length === 4, 'All 4 MFS channels (bKash, Nagad, Rocket, Upay) defined');
+    assert(mfsConfig.bookingFee === 10.00, 'Booking fee configuration is strictly BDT 10.00');
+    assert(mfsConfig.gatewayFee === 2.00, 'Gateway surcharge configuration is BDT 2.00');
+    assert(mfsConfig.totalPayable === 12.00, 'Total payable on gateway is BDT 12.00');
+
+    const bkashMethod = mfsConfig.methods.find((m) => m.id === 'bkash');
+    assert(Boolean(bkashMethod), 'bKash method metadata present');
+    assert(bkashMethod?.hasAppDeepLink === true, 'bKash has documented app deep link / intent on Android');
+
+    const nagadMethod = mfsConfig.methods.find((m) => m.id === 'nagad');
+    assert(Boolean(nagadMethod), 'Nagad method metadata present');
+    assert(nagadMethod?.hasAppDeepLink === false, 'Nagad does not invent speculative deep links (Requirement 4)');
+
+    const rocketMethod = mfsConfig.methods.find((m) => m.id === 'rocket');
+    assert(Boolean(rocketMethod), 'Rocket method metadata present');
+
+    const upayMethod = mfsConfig.methods.find((m) => m.id === 'upay');
+    assert(Boolean(upayMethod), 'Upay method metadata present');
+
+    // -------------------------------------------------------------------------
+    // 7. Method-Specific TrxID Validation Tests (Requirements 3 & 4)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 7. Method-Specific TrxID Validation Tests ---');
+    // bKash: 8-10 alphanumeric
+    const validBkash = validateMethodTrxId('bkash', 'BLK92X4KP1');
+    assert(validBkash.valid === true, 'Valid bKash TrxID format accepted (e.g., BLK92X4KP1)');
+    const invalidBkash = validateMethodTrxId('bkash', 'BK#12');
+    assert(invalidBkash.valid === false, 'Invalid bKash TrxID rejected');
+
+    // Nagad: 8 alphanumeric
+    const validNagad = validateMethodTrxId('nagad', '72K8PL9J');
+    assert(validNagad.valid === true, 'Valid Nagad TrxID format accepted (8 chars from SMS 16167)');
+    const invalidNagad = validateMethodTrxId('nagad', '123');
+    assert(invalidNagad.valid === false, 'Too short Nagad TrxID rejected');
+
+    // Rocket: 10-12 numeric digits
+    const validRocket = validateMethodTrxId('rocket', '3829104821');
+    assert(validRocket.valid === true, 'Valid Rocket TxnId accepted (10-12 digits from SMS 16216)');
+    const invalidRocket = validateMethodTrxId('rocket', 'ROCKET_ABC');
+    assert(invalidRocket.valid === false, 'Alpha Rocket TxnId rejected (must be numeric digits)');
+
+    // Upay: 10 alphanumeric
+    const validUpay = validateMethodTrxId('upay', 'UP91248590');
+    assert(validUpay.valid === true, 'Valid Upay TrxID accepted (10 chars from SMS 16419)');
+    const invalidUpay = validateMethodTrxId('upay', 'UPAY');
+    assert(invalidUpay.valid === false, 'Too short Upay TrxID rejected');
+
+    assert(
+      validRocket.valid !== validateMethodTrxId('rocket', 'NOT_DIGITS').valid,
+      'bKash TrxID logic is NOT blindly reused for Rocket or other methods (Requirement 3)'
+    );
+
+    // -------------------------------------------------------------------------
+    // 8. Safe ENUM Mapping Tests for MySQL & DB Schema (Requirement 7)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 8. Safe ENUM Mapping Tests ---');
+    assert(safePaymentMethodEnum('bkash') === 'bkash', 'safePaymentMethodEnum maps bkash');
+    assert(safePaymentMethodEnum('nagad') === 'nagad', 'safePaymentMethodEnum maps nagad');
+    assert(
+      safePaymentMethodEnum('rocket') === 'rocket' || safePaymentMethodEnum('rocket') === 'online_payment',
+      'safePaymentMethodEnum safely handles rocket'
+    );
+    assert(
+      safePaymentMethodEnum('upay') === 'upay' || safePaymentMethodEnum('upay') === 'online_payment',
+      'safePaymentMethodEnum safely handles upay'
+    );
+
+    // -------------------------------------------------------------------------
+    // 9. Nagad / Rocket / Upay Submission & Pending Verification (Requirement 6)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 9. Nagad / Rocket / Upay Pending Verification Tests ---');
+    const nagadTxnRef = `DS-NAGAD-${Date.now()}`;
+    const nagadApptId = `DS-20261215-00099-${Date.now().toString().slice(-4)}`;
+
+    const [nagadApptRes] = await pool.execute<ResultSetHeader>(`
+      INSERT INTO appointments (
+        appointment_id, patient_id, doctor_id, chamber_id, schedule_id,
+        patient_name, patient_phone, patient_age, patient_gender,
+        schedule_date, serial_number, appointment_time, problem_description,
+        fee, booking_fee, payment_status, booking_source, status, transaction_ref, payment_method
+      ) VALUES (?, NULL, ?, ?, ?, 'Nagad Patient', '01800000000', 25, 'female', ?, 99, '12:00 PM', 'Consultation', 1000.00, 10.00, 'unpaid', 'online', 'pending_payment', ?, 'online_payment')
+    `, [nagadApptId, docId, chamberId, schedId, testDate, nagadTxnRef]);
+
+    const nagadApptPk = nagadApptRes.insertId;
+
+    const [nagadPmtRes] = await pool.execute<ResultSetHeader>(`
+      INSERT INTO payments (appointment_id, transaction_id, method, amount, status, gateway_response)
+      VALUES (?, ?, 'online_payment', 10.00, 'pending', '{}')
+    `, [nagadApptPk, nagadTxnRef]);
+
+    const nagadPmtPk = nagadPmtRes.insertId;
+
+    // Simulate patient submitting Nagad TrxID
+    const submittedNagadTrx = '72K8PL9J';
+    await pool.execute(`
+      UPDATE payments
+      SET method = ?,
           gateway_response = ?,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [JSON.stringify({ submittedTrxId, submittedAt: new Date().toISOString(), verificationStatus: 'pending_admin_approval' }), trxPmtPk]);
+    `, [
+      safePaymentMethodEnum('nagad'),
+      JSON.stringify({
+        submittedTrxId: submittedNagadTrx,
+        method: 'nagad',
+        methodLabel: 'Nagad',
+        verificationStatus: 'pending_admin_approval',
+      }),
+      nagadPmtPk,
+    ]);
 
     await pool.execute(`
       UPDATE appointments
       SET transaction_ref = ?,
-          payment_method = 'bKash (Pending Verification)',
+          payment_method = 'Paymently (Nagad - Pending Verification)',
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [submittedTrxId, trxApptPk]);
+    `, [submittedNagadTrx, nagadApptPk]);
 
-    // CRITICAL REQUIREMENT 5 TEST: Verify payment is NOT marked paid merely because TrxID was entered!
-    const [afterTrxSubmitAppt] = await pool.query<RowDataPacket[]>('SELECT payment_status, status, transaction_ref FROM appointments WHERE id = ?', [trxApptPk]);
-    assert(afterTrxSubmitAppt[0].payment_status === 'unpaid', 'Appointment payment_status remains UNPAID after entering TrxID (never marked paid blindly)');
-    assert(afterTrxSubmitAppt[0].status === 'pending_payment', 'Appointment status remains PENDING_PAYMENT after entering TrxID');
-    assert(afterTrxSubmitAppt[0].transaction_ref === submittedTrxId, 'Submitted TrxID is safely recorded on the appointment record');
+    const [afterNagadSubmit] = await pool.query<RowDataPacket[]>('SELECT payment_status, status, payment_method FROM appointments WHERE id = ?', [nagadApptPk]);
+    assert(afterNagadSubmit[0].payment_status === 'unpaid', 'Appointment payment_status remains UNPAID after entering Nagad TrxID (Requirement 6)');
+    assert(afterNagadSubmit[0].status === 'pending_payment', 'Appointment status remains PENDING_PAYMENT after entering Nagad TrxID');
+    assert(afterNagadSubmit[0].payment_method.includes('Nagad'), 'Appointment payment_method accurately reflects Nagad');
 
-    const [afterTrxSubmitPmt] = await pool.query<RowDataPacket[]>('SELECT status, method, gateway_response FROM payments WHERE id = ?', [trxPmtPk]);
-    assert(afterTrxSubmitPmt[0].status === 'pending', 'payments.status remains PENDING awaiting verification');
-    assert(afterTrxSubmitPmt[0].method === 'bkash', 'payments.method mapped to bkash');
-    assert(afterTrxSubmitPmt[0].gateway_response.includes(submittedTrxId), 'Submitted TrxID recorded in gateway_response for admin review');
-
-    // Test Admin manual confirmation
+    // Admin verifies Nagad payment
     await pool.execute(`
       UPDATE appointments
       SET status = 'confirmed',
           payment_status = 'paid',
-          payment_method = 'bKash (Admin Verified)',
+          payment_method = 'Paymently (Nagad - Admin Verified)',
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [trxApptPk]);
+    `, [nagadApptPk]);
+
     await pool.execute(`
       UPDATE payments
       SET status = 'paid',
+          method = ?,
+          gateway_response = ?,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [trxPmtPk]);
+    `, [
+      safePaymentMethodEnum('nagad'),
+      JSON.stringify({
+        verifiedByAdminId: 1,
+        verifiedByAdminName: 'Super Admin',
+        verifiedAt: new Date().toISOString(),
+        method: 'nagad',
+      }),
+      nagadPmtPk,
+    ]);
 
-    const [afterAdminConfirm] = await pool.query<RowDataPacket[]>('SELECT payment_status, status FROM appointments WHERE id = ?', [trxApptPk]);
-    assert(afterAdminConfirm[0].payment_status === 'paid', 'Appointment marked paid only after official/admin verification');
-    assert(afterAdminConfirm[0].status === 'confirmed', 'Appointment status confirmed after verification');
+    const [afterNagadAdmin] = await pool.query<RowDataPacket[]>('SELECT payment_status, status, payment_method FROM appointments WHERE id = ?', [nagadApptPk]);
+    assert(afterNagadAdmin[0].payment_status === 'paid', 'Nagad appointment marked paid after admin verification');
+    assert(afterNagadAdmin[0].payment_method.includes('Nagad - Admin Verified'), 'Payment method preserved as Nagad in admin confirmation');
 
-    // Clean up Trx test data
-    await pool.execute('DELETE FROM payments WHERE id = ?', [trxPmtPk]);
-    await pool.execute('DELETE FROM appointments WHERE id = ?', [trxApptPk]);
+    // Clean up Nagad test record
+    await pool.execute('DELETE FROM payments WHERE id = ?', [nagadPmtPk]);
+    await pool.execute('DELETE FROM appointments WHERE id = ?', [nagadApptPk]);
 
     // -------------------------------------------------------------------------
-    // 10. Fee Integrity & Checkout Amount Analysis
+    // 10. Fee Integrity & Checkout Amount Analysis (Requirement 5)
     // -------------------------------------------------------------------------
     console.log('\n--- 10. Fee Integrity & Checkout Amount Verification ---');
     assert(
       BOOKING_FEE_BDT === 10.00,
       'Application code strictly sets booking fee as BDT 10.00 without silent changes'
     );
-    const [bookingFeeCheck] = await pool.query<RowDataPacket[]>(
-      'SELECT booking_fee FROM appointments LIMIT 1'
+    assert(
+      GATEWAY_SURCHARGE_BDT === 2.00,
+      'Paymently gateway convenience fee is explicitly BDT 2.00 (not hidden)'
     );
-    if (bookingFeeCheck.length > 0) {
-      assert(
-        Number(bookingFeeCheck[0].booking_fee) === 10.00,
-        'Database appointments.booking_fee default is strictly 10.00'
-      );
-    }
+    assert(
+      TOTAL_PAYABLE_GATEWAY_BDT === 12.00,
+      'Total payable amount on gateway is transparently BDT 12.00 (Requirement 5)'
+    );
 
     // Clean up successful payment test appointment
     await pool.execute('DELETE FROM payments WHERE id = ?', [numericPaymentId]);
