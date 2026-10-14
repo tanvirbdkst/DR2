@@ -18,6 +18,7 @@ import testRoutes from './server/routes/testRoutes.js';
 import uploadRoutes from './server/routes/uploadRoutes.js';
 import notificationRoutes from './server/routes/notificationRoutes.js';
 import paymentRoutes from './server/routes/paymentRoutes.js';
+import adminPaymentGatewayRoutes from './server/routes/adminPaymentGatewayRoutes.js';
 import { initializeFirebaseAdmin } from './server/services/firebaseAdminService.js';
 import {
   getDoctorForMeta,
@@ -164,6 +165,7 @@ async function startServer() {
   app.use('/api/appointments', appointmentRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/payments', paymentRoutes);
+app.use('/api/admin/payment-gateways', adminPaymentGatewayRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/test', testRoutes);
 

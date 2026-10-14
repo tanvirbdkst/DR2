@@ -13,6 +13,7 @@ import { DoctorProfile, Specialty } from '../types.js';
 import { District, BANGLADESH_DISTRICTS } from '../data/districts.js';
 import { HospitalIntegrationPanel } from '../components/HospitalIntegrationPanel.js';
 import { NotificationBell } from '../components/NotificationBell.js';
+import { PaymentGatewayManager } from '../components/PaymentGatewayManager.js';
 
 interface AdminDashboardPageProps {
   onNavigate?: (view: string) => void;
@@ -23,7 +24,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   // Dashboard Data State
   const [activeTab, setActiveTab] = useState<
-    'pending' | 'doctors' | 'appointments' | 'live-queue' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'hospitals' | 'emergency' | 'policies' | 'admins' | 'logs'
+    'pending' | 'doctors' | 'appointments' | 'live-queue' | 'patients' | 'specialties' | 'locations' | 'compounders' | 'hospitals' | 'emergency' | 'policies' | 'admins' | 'payment-gateways' | 'logs'
   >('pending');
   const [stats, setStats] = useState({
     totalDoctors: 0,
@@ -1415,6 +1416,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           >
             <Shield className="w-3.5 h-3.5 text-purple-600" />
             <span>Admins & Roles ({admins.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('payment-gateways')}
+            className={`pb-3 border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'payment-gateways'
+                ? 'border-emerald-600 text-emerald-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Payment Gateways</span>
           </button>
 
           <button
@@ -3555,6 +3568,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       )}
 
       {/* ========================================================= */}
+      
+      {/* ========================================================= */}
+      {/* TAB: PAYMENT GATEWAY MANAGEMENT */}
+      {/* ========================================================= */}
+      {activeTab === 'payment-gateways' && (
+        <PaymentGatewayManager />
+      )}
+
       {/* ADD SPECIALTY MODAL */}
       {/* ========================================================= */}
       {showAddSpecialtyModal && (
