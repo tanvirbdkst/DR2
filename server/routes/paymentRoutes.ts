@@ -14,6 +14,8 @@ import {
 } from '../services/paymentlyService.js';
 import { notifyBookingSuccess } from '../services/notificationService.js';
 import { sendHospitalWebhook } from '../services/hospitalIntegrationService.js';
+import { gatewayRegistry } from '../services/gateways/gatewayRegistry.js';
+import { PaymentGatewayId } from '../services/gateways/types.js';
 
 const router = Router();
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -107,6 +109,195 @@ export async function reconcileExpiredPendingPayments(): Promise<void> {
     console.warn('[PaymentReconcile] Non-fatal notice during stale reconciliation:', err.message);
   }
 }
+
+/**
+ * Shared helper to mark an appointment and payment as PAID atomically upon server-side verification.
+ */
+export async function confirmPaymentSuccess(
+  appointmentDbId: number,
+  verification: {
+    transactionId: string;
+    paymentMethod: string;
+    gatewayId: string;
+    amount: number;
+    verifiedBy: string;
+    rawResponse?: any;
+  }
+): Promise<{ success: boolean; appointment?: any; message?: string }> {
+  const [apptRows] = await pool.query<RowDataPacket[]>(`
+    SELECT a.*, p.id as payment_pk, p.status as payment_status_val, p.amount as payment_amount
+    FROM appointments a
+    LEFT JOIN payments p ON p.appointment_id = a.id
+    WHERE a.id = ?
+  `, [appointmentDbId]);
+
+  if (apptRows.length === 0) {
+    return { success: false, message: 'Appointment record not found' };
+  }
+
+  const apptRow = apptRows[0] as any;
+  if (apptRow.payment_status === 'paid' || apptRow.payment_status_val === 'paid') {
+    return { success: true, appointment: apptRow, message: 'Already marked as paid' };
+  }
+
+  const mappedMethod = mapPaymentMethod(verification.paymentMethod);
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    if (apptRow.payment_pk) {
+      await conn.execute(`
+        UPDATE payments
+        SET status = 'paid',
+            method = ?,
+            gateway_id = ?,
+            verified_at = CURRENT_TIMESTAMP,
+            verified_by = ?,
+            gateway_response = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [
+        mappedMethod,
+        verification.gatewayId,
+        verification.verifiedBy,
+        JSON.stringify(verification.rawResponse || { verifiedAt: new Date().toISOString() }),
+        apptRow.payment_pk,
+      ]);
+    } else {
+      await conn.execute(`
+        INSERT INTO payments (
+          appointment_id, transaction_id, method, amount, status, gateway_id, verified_at, verified_by, gateway_response
+        ) VALUES (?, ?, ?, ?, 'paid', ?, CURRENT_TIMESTAMP, ?, ?)
+      `, [
+        apptRow.id,
+        apptRow.transaction_ref || `DS-TXN-${verification.transactionId}`,
+        mappedMethod,
+        verification.amount || BOOKING_FEE_BDT,
+        verification.gatewayId,
+        verification.verifiedBy,
+        JSON.stringify(verification.rawResponse || {}),
+      ]);
+    }
+
+    await conn.execute(`
+      UPDATE appointments
+      SET status = 'confirmed',
+          payment_status = 'paid',
+          payment_method = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [
+      verification.paymentMethod || 'Online Payment',
+      apptRow.id,
+    ]);
+
+    await conn.commit();
+  } catch (err: any) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  // Fetch full details for notification
+  try {
+    const [detailRows] = await pool.query<RowDataPacket[]>(`
+      SELECT a.*, d.title as doctor_title, u.name as doctor_name, c.name as chamber_name
+      FROM appointments a
+      JOIN doctors d ON a.doctor_id = d.id
+      JOIN users u ON d.user_id = u.id
+      JOIN chambers c ON a.chamber_id = c.id
+      WHERE a.id = ?
+    `, [apptRow.id]);
+
+    if (detailRows.length > 0) {
+      const appt = detailRows[0] as any;
+      notifyBookingSuccess({
+        appointmentId: appt.appointment_id,
+        serialNumber: appt.serial_number,
+        appointmentTime: appt.appointment_time,
+        scheduleDate: appt.schedule_date,
+        doctorId: appt.doctor_id,
+        doctorName: appt.doctor_name,
+        doctorTitle: appt.doctor_title,
+        chamberId: appt.chamber_id,
+        chamberName: appt.chamber_name,
+        patientName: appt.patient_name,
+        patientPhone: appt.patient_phone,
+        fee: appt.fee,
+        bookingSource: 'online',
+      }).catch((notifErr) => {
+        console.warn('[Notification] Background booking notice error:', notifErr.message);
+      });
+    }
+  } catch {
+    // non-fatal
+  }
+
+  await logActivity(
+    null,
+    'PAYMENT_COMPLETED',
+    `${verification.gatewayId.toUpperCase()} verified: ৳${verification.amount} for appointment ${apptRow.appointment_id} (TXN: ${apptRow.transaction_ref}, Gateway ID: ${verification.transactionId})`
+  );
+
+  return { success: true, appointment: apptRow };
+}
+
+/**
+ * GET /api/payments/active-gateways
+ * Returns all currently enabled payment gateways for the checkout screen,
+ * including fee breakdown (Booking Fee BDT 10.00, Surcharge amount, Total Payable).
+ */
+router.get('/active-gateways', async (req: Request, res: Response) => {
+  try {
+    const activeGateways = await gatewayRegistry.getActiveGateways();
+
+    const gateways = activeGateways.map((gw) => {
+      const surchargeFixed = gw.surcharge_fixed || 0;
+      const surchargePercent = gw.surcharge_percentage || 0;
+      const surchargeAmount = Number((surchargeFixed + (BOOKING_FEE_BDT * surchargePercent) / 100).toFixed(2));
+      const totalPayable = Number((BOOKING_FEE_BDT + surchargeAmount).toFixed(2));
+
+      return {
+        id: gw.id,
+        name: gw.name,
+        description: gw.description,
+        logo_url: gw.logo_url,
+        supported_methods: gw.supported_methods,
+        bookingFee: BOOKING_FEE_BDT,
+        surchargeFixed,
+        surchargePercent,
+        surchargeAmount,
+        totalPayable,
+        isSandbox: gw.is_sandbox,
+      };
+    });
+
+    return res.json({
+      success: true,
+      bookingFee: BOOKING_FEE_BDT,
+      gateways: gateways.length > 0 ? gateways : [
+        {
+          id: 'paymently',
+          name: 'Paymently Gateway',
+          description: 'Multi-channel gateway (bKash, Nagad, Rocket, Cards)',
+          logo_url: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=100&auto=format&fit=crop&q=80',
+          supported_methods: ['bkash', 'nagad', 'rocket', 'card'],
+          bookingFee: BOOKING_FEE_BDT,
+          surchargeFixed: GATEWAY_SURCHARGE_BDT,
+          surchargePercent: 0,
+          surchargeAmount: GATEWAY_SURCHARGE_BDT,
+          totalPayable: TOTAL_PAYABLE_GATEWAY_BDT,
+          isSandbox: false,
+        }
+      ],
+    });
+  } catch (err: any) {
+    console.error('[PaymentRoutes] Error getting active gateways:', err);
+    return res.status(500).json({ error: 'Failed to retrieve active payment gateways' });
+  }
+});
 
 /**
  * GET /api/payments/methods
@@ -213,6 +404,25 @@ router.post('/initiate', async (req: Request, res: Response) => {
   const appointmentTime = formatSlotTime(schedule.start_time, schedule.slot_duration_minutes || 10, serialNum);
   const parsedAge = patientAge ? parseInt(String(patientAge), 10) : null;
 
+  // Resolve Gateway dynamically from Registry
+  const reqGatewayId = (req.body.gatewayId as PaymentGatewayId) || 'paymently';
+  let gatewayData = await gatewayRegistry.getGateway(reqGatewayId);
+
+  // If requested gateway not found or not enabled, fallback to first active gateway
+  if (!gatewayData || !gatewayData.record.is_enabled) {
+    const activeGateways = await gatewayRegistry.getActiveGateways();
+    if (activeGateways.length > 0) {
+      gatewayData = await gatewayRegistry.getGateway(activeGateways[0].id);
+    }
+  }
+
+  const chosenGatewayId = gatewayData?.record.id || 'paymently';
+  const gatewayName = gatewayData?.record.name || 'Paymently Gateway';
+  const surchargePercent = Number(gatewayData?.record.surcharge_percentage || 0);
+  const surchargeFixed = Number(gatewayData?.record.surcharge_fixed || 0);
+  const surchargeFee = Number((surchargeFixed + (BOOKING_FEE_BDT * surchargePercent) / 100).toFixed(2));
+  const totalPayable = Number((BOOKING_FEE_BDT + surchargeFee).toFixed(2));
+
   // Concurrency-safe slot lock and pending reservation
   const conn = await pool.getConnection();
   let apptRecordId: number;
@@ -261,7 +471,7 @@ router.post('/initiate', async (req: Request, res: Response) => {
         patient_name, patient_phone, patient_age, patient_gender,
         problem_description, fee, booking_fee, payment_status, booking_source,
         transaction_ref, payment_method, created_by, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'online', ?, 'Paymently', ?, 'pending_payment')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'online', ?, ?, ?, 'pending_payment')
     `, [
       appointmentId,
       user?.id || null,
@@ -279,26 +489,25 @@ router.post('/initiate', async (req: Request, res: Response) => {
       schedule.fee,
       BOOKING_FEE_BDT,
       transactionRef,
+      gatewayName,
       user?.id || null,
     ]);
 
     apptRecordId = insertResult.insertId;
 
-    // Insert pending payment record using verified production schema:
-    // appointment_id (INT UNSIGNED -> references appointments.id)
-    // transaction_id (VARCHAR(100) UNIQUE -> stores transactionRef)
-    // method (ENUM -> 'online_payment')
-    // amount (DECIMAL(10,2) -> 10.00)
-    // status (ENUM -> 'pending')
-    // gateway_response (TEXT -> stores JSON metadata)
+    // Insert pending payment record with breakdown
     await conn.execute(`
       INSERT INTO payments (
-        appointment_id, transaction_id, method, amount, status, gateway_response
-      ) VALUES (?, ?, 'online_payment', ?, 'pending', ?)
+        appointment_id, transaction_id, method, amount, status, gateway_id, booking_fee, consultation_fee, surcharge_fee, gateway_response
+      ) VALUES (?, ?, 'online_payment', ?, 'pending', ?, ?, ?, ?, ?)
     `, [
       apptRecordId,
       transactionRef,
+      totalPayable,
+      chosenGatewayId,
       BOOKING_FEE_BDT,
+      schedule.fee,
+      surchargeFee,
       JSON.stringify({
         appointmentId,
         transactionRef,
@@ -308,6 +517,7 @@ router.post('/initiate', async (req: Request, res: Response) => {
         chamberId: chamIdNum,
         scheduleDate,
         serialNumber: serialNum,
+        gatewayId: chosenGatewayId,
         initiatedAt: new Date().toISOString(),
       }),
     ]);
@@ -323,46 +533,63 @@ router.post('/initiate', async (req: Request, res: Response) => {
 
   // Determine base URLs for callbacks
   const hostUrl = (process.env.APP_URL || 'https://dakatarseial.bd').trim().replace(/\/+$/, '');
-  const redirectUrl = `${hostUrl}/api/payments/paymently/callback`;
-  const cancelUrl = `${hostUrl}/api/payments/paymently/cancel?tx=${encodeURIComponent(transactionRef)}`;
-  const webhookUrl = `${hostUrl}/api/payments/paymently/webhook`;
 
-  // Check if Paymently is configured
-  if (!isPaymentlyConfigured()) {
-    console.warn('[Paymently] PAYMENTLY_API_KEY is not configured in server environment.');
-    return res.status(503).json({
-      error: 'PAYMENTLY_NOT_CONFIGURED',
-      message: 'Paymently payment gateway is not yet configured with an API key.',
-      details: 'Please set PAYMENTLY_API_KEY in your .env or cPanel Node.js environment.',
-      bookingFee: BOOKING_FEE_BDT,
-      transactionRef,
-      appointmentId,
+  // Dispatch payment session creation through dynamic adapter
+  let sessionResult;
+  if (gatewayData) {
+    sessionResult = await gatewayData.adapter.createSession(
+      gatewayData.decryptedConfig,
+      Boolean(gatewayData.record.is_sandbox),
+      {
+        transactionRef,
+        appointmentId,
+        amount: totalPayable,
+        bookingFee: BOOKING_FEE_BDT,
+        consultationFee: Number(schedule.fee || 0),
+        surchargeFee,
+        customerName: patientName,
+        customerPhone: patientPhone,
+        customerEmail: patientEmail || `${patientPhone.replace(/[^0-9]/g, '')}@dakatarseial.bd`,
+        paymentMethod: req.body.paymentMethod,
+        redirectBaseUrl: hostUrl,
+      }
+    );
+  } else {
+    // Fallback to default Paymently service
+    const redirectUrl = `${hostUrl}/api/payments/paymently/callback`;
+    const cancelUrl = `${hostUrl}/api/payments/paymently/cancel?tx=${encodeURIComponent(transactionRef)}`;
+    const webhookUrl = `${hostUrl}/api/payments/paymently/webhook`;
+
+    const chargeResult = await createPaymentCharge({
+      fullName: patientName,
+      email: patientEmail || `${patientPhone.replace(/[^0-9]/g, '')}@dakatarseial.bd`,
+      amount: totalPayable,
+      metadata: {
+        appointmentId,
+        transactionRef,
+        appointmentPk: apptRecordId,
+        doctorId: docIdNum,
+        chamberId: chamIdNum,
+        patientPhone,
+      },
+      redirectUrl,
+      cancelUrl,
+      webhookUrl,
     });
+    sessionResult = {
+      success: chargeResult.success,
+      paymentUrl: chargeResult.paymentUrl,
+      transactionId: chargeResult.invoiceId,
+      rawResponse: chargeResult.rawResponse,
+      error: chargeResult.error || chargeResult.message,
+    };
   }
 
-  // Call Paymently Create Charge (checkout-v2)
-  const chargeResult = await createPaymentCharge({
-    fullName: patientName,
-    email: patientEmail || `${patientPhone.replace(/[^0-9]/g, '')}@dakatarseial.bd`,
-    amount: BOOKING_FEE_BDT,
-    metadata: {
-      appointmentId,
-      transactionRef,
-      appointmentPk: apptRecordId,
-      doctorId: docIdNum,
-      chamberId: chamIdNum,
-      patientPhone,
-    },
-    redirectUrl,
-    cancelUrl,
-    webhookUrl,
-  });
-
-  if (!chargeResult.success || !chargeResult.paymentUrl) {
-    console.error('[Paymently] Failed to create payment charge:', chargeResult);
+  if (!sessionResult.success || !sessionResult.paymentUrl) {
+    console.error(`[PaymentInitiate] ${chosenGatewayId} failed to create payment session:`, sessionResult);
     // Safe cancellation: release serial slot and mark appointment/payment failed
     await pool.execute("UPDATE payments SET status = 'failed', gateway_response = ? WHERE appointment_id = ?", [
-      JSON.stringify(chargeResult.rawResponse || { message: chargeResult.message }),
+      JSON.stringify(sessionResult.rawResponse || { message: sessionResult.error }),
       apptRecordId,
     ]);
     await pool.execute("UPDATE appointments SET status = 'cancelled' WHERE id = ?", [apptRecordId]);
@@ -373,7 +600,7 @@ router.post('/initiate', async (req: Request, res: Response) => {
 
     return res.status(502).json({
       error: 'GATEWAY_ERROR',
-      message: chargeResult.message || 'Payment gateway failed to initialize checkout session.',
+      message: sessionResult.error || 'Payment gateway failed to initialize checkout session.',
     });
   }
 
@@ -384,11 +611,12 @@ router.post('/initiate', async (req: Request, res: Response) => {
     WHERE appointment_id = ?
   `, [
     JSON.stringify({
-      paymentUrl: chargeResult.paymentUrl,
-      invoiceId: chargeResult.invoiceId || null,
+      paymentUrl: sessionResult.paymentUrl,
+      invoiceId: sessionResult.transactionId || null,
       appointmentId,
       transactionRef,
-      raw: chargeResult.rawResponse || {},
+      gatewayId: chosenGatewayId,
+      raw: sessionResult.rawResponse || {},
     }),
     apptRecordId,
   ]);
@@ -396,19 +624,22 @@ router.post('/initiate', async (req: Request, res: Response) => {
   await logActivity(
     user?.id || null,
     'PAYMENT_INITIATED',
-    `Paymently checkout initiated for appointment ${appointmentId} (TXN: ${transactionRef}) - ৳${BOOKING_FEE_BDT}`
+    `${gatewayName} checkout initiated for appointment ${appointmentId} (TXN: ${transactionRef}) - ৳${totalPayable} (Booking Fee: ৳${BOOKING_FEE_BDT}, Surcharge: ৳${surchargeFee})`
   );
 
   return res.status(200).json({
     success: true,
     message: 'Payment checkout initiated successfully',
-    paymentUrl: chargeResult.paymentUrl,
-    invoiceId: chargeResult.invoiceId || null,
+    paymentUrl: sessionResult.paymentUrl,
+    invoiceId: sessionResult.transactionId || null,
     transactionRef,
     appointmentId,
     bookingFee: BOOKING_FEE_BDT,
-    gatewayFee: GATEWAY_SURCHARGE_BDT,
-    totalPayable: TOTAL_PAYABLE_GATEWAY_BDT,
+    consultationFee: schedule.fee,
+    gatewayFee: surchargeFee,
+    totalPayable,
+    gatewayId: chosenGatewayId,
+    gatewayName,
     currency: 'BDT',
     methodsConfig: getMfsMethodsConfig(),
   });
@@ -797,6 +1028,158 @@ router.post('/paymently/webhook', async (req: Request, res: Response) => {
 
   return res.status(200).json({ success: true, message: 'Webhook processed successfully' });
 });
+
+/**
+ * bKash Direct Merchant Callback
+ * GET & POST /api/payments/bkash/callback
+ */
+const handleBkashCallback = async (req: Request, res: Response) => {
+  const hostUrl = (process.env.APP_URL || 'https://dakatarseial.bd').trim().replace(/\/+$/, '');
+  const paymentID = (req.query.paymentID || req.body.paymentID) as string;
+  const status = (req.query.status || req.body.status) as string;
+  const transactionRef = (req.query.ref || req.body.ref) as string;
+
+  if (status === 'cancel' || status === 'failure') {
+    return res.redirect(`${hostUrl}/?payment_status=cancelled&ref=${encodeURIComponent(transactionRef || '')}`);
+  }
+
+  if (!paymentID) {
+    return res.redirect(`${hostUrl}/?payment_status=failed&error=missing_payment_id`);
+  }
+
+  const bkashGateway = await gatewayRegistry.getGateway('bkash');
+  if (!bkashGateway) {
+    return res.redirect(`${hostUrl}/?payment_status=error&error=bkash_not_configured`);
+  }
+
+  // Strict server-side verification using official bKash execute & status API
+  const verifyResult = await bkashGateway.adapter.verifyPayment(
+    bkashGateway.decryptedConfig,
+    Boolean(bkashGateway.record.is_sandbox),
+    { paymentId: paymentID, transactionRef }
+  );
+
+  if (!verifyResult.success || !verifyResult.paid) {
+    return res.redirect(`${hostUrl}/?payment_status=failed&reason=${encodeURIComponent(verifyResult.error || 'bKash verification failed')}`);
+  }
+
+  // Find appointment
+  let apptRow: any = null;
+  if (transactionRef) {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM appointments WHERE transaction_ref = ?', [transactionRef]);
+    if (rows.length > 0) apptRow = rows[0];
+  }
+  if (!apptRow) {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT a.* FROM appointments a JOIN payments p ON p.appointment_id = a.id WHERE p.gateway_response LIKE ?', [`%${paymentID}%`]);
+    if (rows.length > 0) apptRow = rows[0];
+  }
+
+  if (!apptRow) {
+    return res.redirect(`${hostUrl}/?payment_status=failed&error=appointment_not_found`);
+  }
+
+  await confirmPaymentSuccess(apptRow.id, {
+    transactionId: verifyResult.transactionId || paymentID,
+    paymentMethod: 'bKash Merchant',
+    gatewayId: 'bkash',
+    amount: verifyResult.amount || BOOKING_FEE_BDT,
+    verifiedBy: verifyResult.verifiedBy || 'bkash:tokenized-api',
+    rawResponse: verifyResult.rawResponse,
+  });
+
+  return res.redirect(`${hostUrl}/?payment_status=success&appointment_id=${encodeURIComponent(apptRow.appointment_id)}&txn=${encodeURIComponent(apptRow.transaction_ref || '')}`);
+};
+
+router.get('/bkash/callback', handleBkashCallback);
+router.post('/bkash/callback', handleBkashCallback);
+
+/**
+ * bKash Webhook IPN
+ * POST /api/payments/bkash/webhook
+ */
+router.post('/bkash/webhook', async (req: Request, res: Response) => {
+  const paymentID = req.body?.paymentID;
+  if (!paymentID) {
+    return res.status(400).json({ error: 'MISSING_PAYMENT_ID' });
+  }
+
+  const bkashGateway = await gatewayRegistry.getGateway('bkash');
+  if (!bkashGateway) {
+    return res.status(503).json({ error: 'BKASH_NOT_CONFIGURED' });
+  }
+
+  const verifyResult = await bkashGateway.adapter.verifyPayment(
+    bkashGateway.decryptedConfig,
+    Boolean(bkashGateway.record.is_sandbox),
+    { paymentId: paymentID }
+  );
+
+  if (!verifyResult.success || !verifyResult.paid) {
+    return res.status(200).json({ status: 'unverified', message: verifyResult.error });
+  }
+
+  const [rows] = await pool.query<RowDataPacket[]>('SELECT a.* FROM appointments a JOIN payments p ON p.appointment_id = a.id WHERE p.gateway_response LIKE ?', [`%${paymentID}%`]);
+  if (rows.length > 0) {
+    await confirmPaymentSuccess(rows[0].id, {
+      transactionId: verifyResult.transactionId || paymentID,
+      paymentMethod: 'bKash Merchant',
+      gatewayId: 'bkash',
+      amount: verifyResult.amount || BOOKING_FEE_BDT,
+      verifiedBy: 'webhook:bkash',
+      rawResponse: verifyResult.rawResponse,
+    });
+  }
+
+  return res.json({ success: true, verified: true });
+});
+
+/**
+ * SSLCommerz Callback
+ * POST /api/payments/sslcommerz/callback
+ */
+const handleSslcommerzCallback = async (req: Request, res: Response) => {
+  const hostUrl = (process.env.APP_URL || 'https://dakatarseial.bd').trim().replace(/\/+$/, '');
+  const valId = req.body?.val_id || req.query?.val_id;
+  const transactionRef = (req.query.ref || req.body.tran_id) as string;
+
+  const sslGateway = await gatewayRegistry.getGateway('sslcommerz');
+  if (!sslGateway) {
+    return res.redirect(`${hostUrl}/?payment_status=error&error=sslcommerz_not_configured`);
+  }
+
+  const verifyResult = await sslGateway.adapter.verifyPayment(
+    sslGateway.decryptedConfig,
+    Boolean(sslGateway.record.is_sandbox),
+    { transactionId: valId, rawPayload: req.body }
+  );
+
+  if (!verifyResult.success || !verifyResult.paid) {
+    return res.redirect(`${hostUrl}/?payment_status=failed&reason=${encodeURIComponent(verifyResult.error || 'SSLCommerz payment validation failed')}`);
+  }
+
+  let apptRow: any = null;
+  if (transactionRef) {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM appointments WHERE transaction_ref = ?', [transactionRef]);
+    if (rows.length > 0) apptRow = rows[0];
+  }
+
+  if (apptRow) {
+    await confirmPaymentSuccess(apptRow.id, {
+      transactionId: verifyResult.transactionId,
+      paymentMethod: verifyResult.method || 'SSLCommerz',
+      gatewayId: 'sslcommerz',
+      amount: verifyResult.amount || BOOKING_FEE_BDT,
+      verifiedBy: 'sslcommerz:validator',
+      rawResponse: verifyResult.rawResponse,
+    });
+    return res.redirect(`${hostUrl}/?payment_status=success&appointment_id=${encodeURIComponent(apptRow.appointment_id)}&txn=${encodeURIComponent(apptRow.transaction_ref || '')}`);
+  }
+
+  return res.redirect(`${hostUrl}/?payment_status=success`);
+};
+
+router.get('/sslcommerz/callback', handleSslcommerzCallback);
+router.post('/sslcommerz/callback', handleSslcommerzCallback);
 
 /**
  * 5. Submit bKash Transaction ID (TrxID) for Verification

@@ -91,10 +91,20 @@ export const pool: mysql.Pool = {
     }
     return getSqliteAdapter().getConnection();
   },
-} as unknown as mysql.Pool;
+  get isMysql(): boolean {
+    return isMysqlActive;
+  },
+  get isSqlite(): boolean {
+    return !isMysqlActive;
+  },
+} as unknown as mysql.Pool & { isMysql: boolean; isSqlite: boolean };
 
 export const db = pool;
 export default pool;
+
+export function isDatabaseMysql(): boolean {
+  return isMysqlActive;
+}
 
 /**
  * Initializes and tests the database connection pool.
@@ -105,8 +115,8 @@ export async function initDatabase(): Promise<void> {
     isMysqlActive = true;
     console.log(`[MySQL] Successfully connected to database: ${dbName} on ${dbHost}:${dbPort}`);
     connection.release();
-    // Ensure all required tables and columns (admin_role, admin_permissions, settings, etc.) exist in MySQL
-    await ensureSchemaInDatabase(mysqlPool);
+    // Ensure all required tables and columns exist in MySQL
+    await ensureSchemaInDatabase(mysqlPool, true);
     // Ensure districts table exists and has 64 districts in MySQL
     await ensureDistrictsTableInDb(mysqlPool);
     // Ensure notifications and fcm_tokens tables exist in MySQL
@@ -116,6 +126,7 @@ export async function initDatabase(): Promise<void> {
     console.log(`[Database] MySQL not reachable at ${dbHost}:${dbPort} (${err.code || err.message}).`);
     console.log(`[Database] Running in embedded mode using SQLite with full schema and seed data!`);
     getSqliteAdapter(); // trigger table creation & seed
+    await ensureSchemaInDatabase(pool, false);
   }
 }
 

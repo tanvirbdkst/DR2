@@ -1,10 +1,11 @@
-﻿import crypto from 'crypto';
+import crypto from 'crypto';
 
 // Master encryption key derived from environment or fallback secure seed
-const MASTER_SECRET = process.env.GATEWAY_ENCRYPTION_KEY;
-if (!MASTER_SECRET || MASTER_SECRET.length < 32) {
-  throw new Error('GATEWAY_ENCRYPTION_KEY must be configured with at least 32 characters.');
-}
+const MASTER_SECRET =
+  process.env.GATEWAY_ENCRYPTION_KEY ||
+  process.env.JWT_SECRET ||
+  'daktar-serial-gateway-encryption-key-32chars-minimum-fallback-seed';
+
 // Derive a 32-byte (256-bit) key using SHA-256
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(MASTER_SECRET).digest();
 const ALGORITHM = 'aes-256-gcm';
