@@ -15,11 +15,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const LANGUAGE_STORAGE_KEY = 'daktar_serial_lang';
+
+function getInitialLanguage(): 'en' | 'bn' {
+  try {
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (saved === 'en' || saved === 'bn') {
+      return saved;
+    }
+  } catch {
+    // ignore
+  }
+  // Default primary language is always Bengali
+  return 'bn';
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Pre-seed from stored user if available for instant offline / startup UI
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [loading, setLoading] = useState(true);
-  const [lang, setLang] = useState<'en' | 'bn'>('en');
+  const [lang, setLangState] = useState<'en' | 'bn'>(getInitialLanguage);
+
+  const setLang = (newLang: 'en' | 'bn') => {
+    setLangState(newLang);
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = newLang;
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = lang;
+    }
+  }, [lang]);
 
   const refreshUser = async () => {
     try {

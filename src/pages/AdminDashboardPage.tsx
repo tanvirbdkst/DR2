@@ -5,7 +5,7 @@ import {
   RefreshCw, LogOut, ArrowRight, Lock, Mail, KeyRound, Eye, EyeOff,
   Clock, Check, Phone, MapPin, FileText, Save, CheckSquare, Square, RotateCcw,
   Building2, Zap, PhoneCall, Scale, Trash2, Edit2, UserPlus, Smartphone, ExternalLink, Shield,
-  AlertTriangle, Ambulance, Droplets, Volume2
+  AlertTriangle, Ambulance, Droplets, Volume2, CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { getAuthToken } from '../config/api.js';

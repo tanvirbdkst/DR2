@@ -1,18 +1,19 @@
 ﻿import crypto from 'crypto';
 
-// Master encryption key derived from environment or fallback secure seed
+// Require a dedicated server-side encryption key.
 const MASTER_SECRET = process.env.GATEWAY_ENCRYPTION_KEY;
 if (!MASTER_SECRET || MASTER_SECRET.length < 32) {
   throw new Error('GATEWAY_ENCRYPTION_KEY must be configured with at least 32 characters.');
 }
+
 // Derive a 32-byte (256-bit) key using SHA-256
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(MASTER_SECRET).digest();
 const ALGORITHM = 'aes-256-gcm';
 
 export interface EncryptedPayload {
-  iv: string; // hex
-  authTag: string; // hex
-  ciphertext: string; // hex
+  iv: string;
+  authTag: string;
+  ciphertext: string;
 }
 
 /**
@@ -21,9 +22,9 @@ export interface EncryptedPayload {
 export function encryptData(data: any): string {
   if (data === null || data === undefined) return '';
   const text = typeof data === 'string' ? data : JSON.stringify(data);
-  const iv = crypto.randomBytes(12); // 96-bit IV recommended for GCM
+  const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-  
+
   let ciphertext = cipher.update(text, 'utf8', 'hex');
   ciphertext += cipher.final('hex');
   const authTag = cipher.getAuthTag().toString('hex');
@@ -45,9 +46,7 @@ export function decryptData<T = any>(encryptedStr: string | null | undefined): T
 
   try {
     const payload: EncryptedPayload = JSON.parse(encryptedStr);
-    if (!payload.iv || !payload.authTag || !payload.ciphertext) {
-      return null;
-    }
+    if (!payload.iv || !payload.authTag || !payload.ciphertext) return null;
 
     const iv = Buffer.from(payload.iv, 'hex');
     const authTag = Buffer.from(payload.authTag, 'hex');
@@ -70,16 +69,15 @@ export function decryptData<T = any>(encryptedStr: string | null | undefined): T
 
 /**
  * Mask sensitive credentials for safe API responses and admin preview.
- * e.g. "sk_live_abcdef123456" => "sk_â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢3456"
  */
 export function maskSecret(secret?: string | null): string {
   if (!secret) return '';
   const str = String(secret).trim();
-  if (str.length <= 4) return 'â€¢â€¢â€¢â€¢';
-  if (str.length <= 8) return `${str.slice(0, 1)}â€¢â€¢â€¢â€¢${str.slice(-1)}`;
+  if (str.length <= 4) return '••••';
+  if (str.length <= 8) return `${str.slice(0, 1)}••••${str.slice(-1)}`;
   const prefix = str.slice(0, Math.min(3, Math.floor(str.length / 4)));
   const suffix = str.slice(-4);
-  return `${prefix}â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢${suffix}`;
+  return `${prefix}••••••••${suffix}`;
 }
 
 /**

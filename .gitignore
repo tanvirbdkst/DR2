@@ -22,3 +22,9 @@ package.json.backup
 *-service-account*.json
 *.pem
 *.key
+
+# Internal platform & backup files
+.aistudio/
+*.backup
+*.patch
+*.bundle

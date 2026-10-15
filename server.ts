@@ -38,7 +38,9 @@ async function startServer() {
   initializeFirebaseAdmin();
 
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  // In development / AI Studio container, nginx listens on 8080 and proxies to 3000.
+  // Port 3000 is required by the environment.
+  const PORT = process.env.PORT && process.env.PORT !== '8080' ? Number(process.env.PORT) : 3000;
 
   // Trust proxy headers (LiteSpeed / Passenger / Cloudflare / Cloud Run reverse proxies)
   app.set('trust proxy', true);
@@ -158,6 +160,7 @@ async function startServer() {
   app.use('/api/auth', authRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/admin/hospitals', adminHospitalRoutes);
+  app.use('/api/admin/payment-gateways', adminPaymentGatewayRoutes);
   app.use('/api/integration/hospital', hospitalIntegrationRoutes);
   app.use('/api/doctor', doctorRoutes);
   app.use('/api/compounder', compounderRoutes);
@@ -237,9 +240,9 @@ app.use('/api/admin/payment-gateways', adminPaymentGatewayRoutes);
       }
     });
   } else {
-    // Vite middleware for dev
+    // Vite middleware for dev (HMR disabled as per environment constraints)
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -304,10 +307,18 @@ app.use('/api/admin/payment-gateways', adminPaymentGatewayRoutes);
     return htmlTemplate;
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Server running on port ${PORT}`);
     console.log(`Daktar Serial server running on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[Server] Port ${PORT} already in use.`);
+    } else {
+      console.error('[Server] Fatal server error:', err);
+    }
   });
 }
 

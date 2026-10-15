@@ -985,6 +985,8 @@ export function transformMysqlToSqlite(sql: string): string {
  */
 export class SqlitePoolWrapper {
   private db: DatabaseSync;
+  public isSqlite = true;
+  public isMysql = false;
 
   constructor() {
     this.db = getSqliteDb();
