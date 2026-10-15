@@ -17,25 +17,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const LANGUAGE_STORAGE_KEY = 'daktar_serial_lang';
 
-function getInitialLanguage(): 'en' | 'bn' {
-  try {
-    // Only use English if the user explicitly clicked English during this session
-    const sessionSaved = sessionStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (sessionSaved === 'en') {
-      return 'en';
-    }
-  } catch {
-    // ignore
-  }
-  // Whenever the site opens, primary language is ALWAYS Bangla ('bn')
-  return 'bn';
-}
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Pre-seed from stored user if available for instant offline / startup UI
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [loading, setLoading] = useState(true);
-  const [lang, setLangState] = useState<'en' | 'bn'>(getInitialLanguage);
+  // Site ALWAYS opens in Bangla ('bn') by default
+  const [lang, setLangState] = useState<'en' | 'bn'>('bn');
 
   const setLang = (newLang: 'en' | 'bn') => {
     setLangState(newLang);
@@ -49,6 +36,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // ignore
     }
   };
+
+  useEffect(() => {
+    // Unconditionally force Bangla on site initial load and clear any old English keys
+    try {
+      sessionStorage.removeItem(LANGUAGE_STORAGE_KEY);
+      localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = 'bn';
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
