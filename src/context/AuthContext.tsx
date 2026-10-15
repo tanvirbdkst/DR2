@@ -19,14 +19,15 @@ const LANGUAGE_STORAGE_KEY = 'daktar_serial_lang';
 
 function getInitialLanguage(): 'en' | 'bn' {
   try {
-    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (saved === 'en' || saved === 'bn') {
-      return saved;
+    // Only use English if the user explicitly clicked English during this session
+    const sessionSaved = sessionStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (sessionSaved === 'en') {
+      return 'en';
     }
   } catch {
     // ignore
   }
-  // Default primary language is always Bengali
+  // Whenever the site opens, primary language is ALWAYS Bangla ('bn')
   return 'bn';
 }
 
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setLang = (newLang: 'en' | 'bn') => {
     setLangState(newLang);
     try {
+      sessionStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
       localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
       if (typeof document !== 'undefined') {
         document.documentElement.lang = newLang;

@@ -39,9 +39,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}
-              className="hover:text-emerald-400 transition font-medium cursor-pointer text-[11px] sm:text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-200"
+              className="hover:text-emerald-400 transition font-medium cursor-pointer text-[11px] sm:text-xs px-2.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700/60 flex items-center gap-1"
+              title={lang === 'en' ? 'Switch to বাংলা' : 'Switch to English'}
             >
-              {lang === 'en' ? 'বাংলা' : 'EN'}
+              <span>🌐</span>
+              <span>{lang === 'en' ? 'বাংলা' : 'English'}</span>
             </button>
           </div>
         </div>
