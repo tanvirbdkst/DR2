@@ -67,7 +67,7 @@ export const PaymentlyCheckoutModal: React.FC<PaymentlyCheckoutModalProps> = ({
   isOpen,
   onClose,
   booking,
-  language = 'en',
+  language = 'bn',
   onPaymentSuccess,
   onPendingVerification,
 }) => {

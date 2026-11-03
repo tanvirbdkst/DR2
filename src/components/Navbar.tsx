@@ -37,14 +37,32 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
             <span className="font-mono text-slate-300 truncate">999 • 16263</span>
           </button>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}
-              className="hover:text-emerald-400 transition font-medium cursor-pointer text-[11px] sm:text-xs px-2.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700/60 flex items-center gap-1"
-              title={lang === 'en' ? 'Switch to বাংলা' : 'Switch to English'}
-            >
-              <span>🌐</span>
-              <span>{lang === 'en' ? 'বাংলা' : 'English'}</span>
-            </button>
+            <div className="inline-flex items-center rounded-lg bg-slate-800 p-0.5 border border-slate-700/70 text-[11px]" role="group" aria-label="Language selector">
+              <button
+                type="button"
+                onClick={() => setLang('bn')}
+                aria-pressed={lang === 'bn'}
+                className={`px-2 py-0.5 rounded font-medium transition cursor-pointer flex items-center gap-1 ${
+                  lang === 'bn'
+                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>বাংলা</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang('en')}
+                aria-pressed={lang === 'en'}
+                className={`px-2 py-0.5 rounded font-medium transition cursor-pointer flex items-center gap-1 ${
+                  lang === 'en'
+                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>EN</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

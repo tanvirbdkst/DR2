@@ -15,19 +15,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const LANGUAGE_STORAGE_KEY = 'daktar_serial_lang';
+export const LANGUAGE_STORAGE_KEY = 'daktar_serial_lang';
+
+export function getInitialLanguage(): 'en' | 'bn' {
+  if (typeof window === 'undefined') return 'bn';
+  try {
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (saved === 'en' || saved === 'bn') {
+      return saved;
+    }
+  } catch {
+    // Storage access blocked or unavailable
+  }
+  // Default language on fresh startup is ALWAYS Bengali ('bn')
+  return 'bn';
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Pre-seed from stored user if available for instant offline / startup UI
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [loading, setLoading] = useState(true);
-  // Site ALWAYS opens in Bangla ('bn') by default
-  const [lang, setLangState] = useState<'en' | 'bn'>('bn');
+  const [lang, setLangState] = useState<'en' | 'bn'>(getInitialLanguage);
 
   const setLang = (newLang: 'en' | 'bn') => {
     setLangState(newLang);
     try {
-      sessionStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
       localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
       if (typeof document !== 'undefined') {
         document.documentElement.lang = newLang;
@@ -36,19 +48,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // ignore
     }
   };
-
-  useEffect(() => {
-    // Unconditionally force Bangla on site initial load and clear any old English keys
-    try {
-      sessionStorage.removeItem(LANGUAGE_STORAGE_KEY);
-      localStorage.removeItem(LANGUAGE_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    if (typeof document !== 'undefined') {
-      document.documentElement.lang = 'bn';
-    }
-  }, []);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
