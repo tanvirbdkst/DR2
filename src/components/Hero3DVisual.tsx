@@ -75,17 +75,15 @@ export const Hero3DVisual: React.FC<Hero3DVisualProps> = ({ onPrimaryCta, onSeco
                 }
           }
           transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-3 sm:-top-5 -left-2 sm:-left-4 z-20 flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-white/95 backdrop-blur-md shadow-lg shadow-emerald-900/10 border border-emerald-100 text-slate-800 text-xs sm:text-sm font-semibold pointer-events-none"
+          className="absolute -top-3 sm:-top-5 -left-2 sm:-left-4 z-20 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-white/95 backdrop-blur-md shadow-lg shadow-emerald-900/10 border border-emerald-100 text-slate-800 pointer-events-none"
         >
           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-xs">
             <Calendar className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </div>
-          <div className="flex flex-col text-left">
-            <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-emerald-700 font-bold leading-tight">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="text-xs sm:text-sm font-extrabold text-emerald-900 tracking-tight leading-tight">
               {t('Live Serial', 'লাইভ সিরিয়াল')}
-            </span>
-            <span className="text-xs sm:text-xs font-extrabold text-slate-900 leading-tight">
-              {t('Serial #03 Reserved', 'সিরিয়াল ০৩ সংরক্ষিত')}
             </span>
           </div>
         </motion.div>
