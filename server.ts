@@ -168,7 +168,6 @@ async function startServer() {
   app.use('/api/appointments', appointmentRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/payments', paymentRoutes);
-app.use('/api/admin/payment-gateways', adminPaymentGatewayRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/test', testRoutes);
 

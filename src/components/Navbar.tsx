@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   Stethoscope, CalendarCheck, ShieldCheck, User, LogOut, ChevronDown,
-  ClipboardList, Menu, X, PhoneCall, Search, Home
+  ClipboardList, Menu, X, PhoneCall, Search, Home, Sparkles, Calendar
 } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useAuth } from '../context/AuthContext.js';
 import { NotificationBell } from './NotificationBell.js';
 
@@ -23,8 +24,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
     setDropdownOpen(false);
   };
 
+  const shouldReduceMotion = useReducedMotion();
+
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
+    <motion.header
+      initial={shouldReduceMotion ? { y: 0, opacity: 1 } : { y: -20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200"
+    >
       {/* Top micro bar: emergency hotline & language switcher */}
       <div className="bg-slate-900 text-slate-200 text-xs py-1.5 px-3 sm:px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
@@ -70,19 +78,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
       {/* Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
-          {/* Logo — clickable brand mark that routes home ("/") */}
-          <button
+          {/* Logo — clickable brand mark with smooth hover scale and glowing ring */}
+          <motion.button
             type="button"
             onClick={() => navigateTo('home')}
+            whileHover={shouldReduceMotion ? {} : { scale: 1.03 }}
+            whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
             aria-label="Doctor Serial — Home"
             title="Doctor Serial"
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 text-left"
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl overflow-hidden shadow-xs ring-1 ring-slate-900/5 group-hover:scale-[1.03] transition-transform flex items-center justify-center p-0.5">
+            <div className="relative w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl overflow-hidden shadow-xs ring-1 ring-slate-900/5 bg-slate-50 flex items-center justify-center p-0.5">
+              <div className="absolute inset-0 bg-emerald-500/10 rounded-xl animate-pulse pointer-events-none" />
               <img
                 src="/logo.png"
                 alt="Doctor Serial"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain relative z-10"
               />
             </div>
             <div className="flex flex-col text-left">
@@ -93,30 +104,32 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
                 {t('Chamber Booking', 'চেম্বার বুকিং')}
               </span>
             </div>
-          </button>
+          </motion.button>
 
           {/* Desktop Nav Links */}
           <nav className="hidden md:flex items-center gap-1">
-            <button
+            <motion.button
+              whileHover={shouldReduceMotion ? {} : { y: -1 }}
               onClick={() => navigateTo('home')}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
                 currentView === 'home'
-                  ? 'bg-emerald-50 text-emerald-700'
+                  ? 'bg-emerald-50 text-emerald-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               {t('Home', 'হোম')}
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={shouldReduceMotion ? {} : { y: -1 }}
               onClick={() => navigateTo('doctors')}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
                 currentView === 'doctors'
-                  ? 'bg-emerald-50 text-emerald-700'
+                  ? 'bg-emerald-50 text-emerald-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               {t('Find Doctors', 'ডাক্তার খুঁজুন')}
-            </button>
+            </motion.button>
 
             {user?.role === 'patient' && (
               <button
@@ -417,6 +430,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
           )}
         </div>
       )}
-    </header>
+    </motion.header>
   );
 };

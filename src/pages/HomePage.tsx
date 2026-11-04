@@ -2,13 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search, MapPin, Stethoscope, Calendar, ArrowRight, ShieldCheck, Clock,
   CheckCircle2, Award, Users, Activity, Sparkles, Building2, HeartPulse,
-  Baby, Smile, Brain, Volume2, ChevronRight, Eye, ChevronDown
+  Baby, Smile, Brain, Volume2, ChevronRight, Eye, ChevronDown, Smartphone
 } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useAuth } from '../context/AuthContext.js';
 import { Specialty, DoctorProfile } from '../types.js';
 import { District, groupDistrictsByDivision } from '../data/districts.js';
 import { getApiUrl } from '../config/api.js';
 import { DownloadApkButton } from '../components/DownloadApkButton.js';
+import { Hero3DVisual } from '../components/Hero3DVisual.js';
+import { BookingProcess3D } from '../components/BookingProcess3D.js';
+import { DoctorCard3D } from '../components/DoctorCard3D.js';
+import { AnimatedStats3D } from '../components/AnimatedStats3D.js';
+import { Testimonials3D } from '../components/Testimonials3D.js';
 
 const getSpecialtyConfig = (slug: string, name?: string) => {
   const s = `${slug || ''} ${name || ''}`.toLowerCase();
@@ -17,78 +23,77 @@ const getSpecialtyConfig = (slug: string, name?: string) => {
     return {
       Icon: HeartPulse,
       iconBg: 'bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white',
-      borderHover: 'hover:border-rose-400 hover:shadow-rose-500/10',
+      borderHover: 'hover:border-rose-400 hover:shadow-rose-500/15',
     };
   }
   if (s.includes('dermatol') || s.includes('skin') || s.includes('চর্ম')) {
     return {
       Icon: Sparkles,
       iconBg: 'bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white',
-      borderHover: 'hover:border-purple-400 hover:shadow-purple-500/10',
+      borderHover: 'hover:border-purple-400 hover:shadow-purple-500/15',
     };
   }
   if (s.includes('dental') || s.includes('tooth') || s.includes('দস্ত') || s.includes('দাঁত')) {
     return {
       Icon: Volume2,
       iconBg: 'bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white',
-      borderHover: 'hover:border-sky-400 hover:shadow-sky-500/10',
+      borderHover: 'hover:border-sky-400 hover:shadow-sky-500/15',
     };
   }
   if (s.includes('ent') || s.includes('ear') || s.includes('throat') || s.includes('নাক') || s.includes('কান')) {
     return {
       Icon: Volume2,
       iconBg: 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white',
-      borderHover: 'hover:border-teal-400 hover:shadow-teal-500/10',
+      borderHover: 'hover:border-teal-400 hover:shadow-teal-500/15',
     };
   }
   if (s.includes('gastro') || s.includes('পরিপাক') || s.includes('liver')) {
     return {
       Icon: Volume2,
       iconBg: 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white',
-      borderHover: 'hover:border-teal-400 hover:shadow-teal-500/10',
+      borderHover: 'hover:border-teal-400 hover:shadow-teal-500/15',
     };
   }
   if (s.includes('gynecol') || s.includes('women') || s.includes('obs') || s.includes('স্ত্রী') || s.includes('প্রসূতি')) {
     return {
       Icon: Baby,
       iconBg: 'bg-pink-50 text-pink-600 group-hover:bg-pink-600 group-hover:text-white',
-      borderHover: 'hover:border-pink-400 hover:shadow-pink-500/10',
+      borderHover: 'hover:border-pink-400 hover:shadow-pink-500/15',
     };
   }
   if (s.includes('pediatric') || s.includes('child') || s.includes('শিশু')) {
     return {
       Icon: Smile,
       iconBg: 'bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white',
-      borderHover: 'hover:border-amber-400 hover:shadow-amber-500/10',
+      borderHover: 'hover:border-amber-400 hover:shadow-amber-500/15',
     };
   }
   if (s.includes('orthoped') || s.includes('bone') || s.includes('হাড়') || s.includes('হাড়')) {
     return {
       Icon: Activity,
       iconBg: 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white',
-      borderHover: 'hover:border-blue-400 hover:shadow-blue-500/10',
+      borderHover: 'hover:border-blue-400 hover:shadow-blue-500/15',
     };
   }
   if (s.includes('neuro') || s.includes('brain') || s.includes('psychiat') || s.includes('নিউরো') || s.includes('মানসিক')) {
     return {
       Icon: Brain,
       iconBg: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
-      borderHover: 'hover:border-indigo-400 hover:shadow-indigo-500/10',
+      borderHover: 'hover:border-indigo-400 hover:shadow-indigo-500/15',
     };
   }
   if (s.includes('eye') || s.includes('ophthalm') || s.includes('চক্ষু')) {
     return {
       Icon: Eye,
       iconBg: 'bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white',
-      borderHover: 'hover:border-cyan-400 hover:shadow-cyan-500/10',
+      borderHover: 'hover:border-cyan-400 hover:shadow-cyan-500/15',
     };
   }
 
-  // Default clean emerald healthcare styling
   return {
     Icon: Stethoscope,
     iconBg: 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
-    borderHover: 'hover:border-emerald-400 hover:shadow-emerald-500/10',
+    borderHover: 'hover:border-emerald-400 hover:shadow-emerald-500/15',
   };
 };
 
@@ -100,6 +105,7 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, onNavigate }) => {
   const { t, lang } = useAuth();
+  const shouldReduceMotion = useReducedMotion();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -119,7 +125,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
       if (res.ok) {
         const distData = await res.json();
         const rawDistricts: District[] = distData.districts || [];
-        // Strictly filter to active districts only
         const activeOnly = rawDistricts.filter(
           (d) => d.is_active === undefined || Number(d.is_active) === 1 || d.is_active === true
         );
@@ -164,8 +169,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
     fetchActiveDistricts();
   }, []);
 
-  // Public search dropdown: ONLY group districts that were returned by the API as active.
-  // Never fallback to BANGLADESH_DISTRICTS so inactive districts stay hidden.
   const divisions = useMemo(() => {
     return groupDistrictsByDivision(activeDistricts);
   }, [activeDistricts]);
@@ -176,38 +179,122 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
   };
 
   return (
-    <div className="space-y-16 pb-16">
-      {/* Hero Section */}
+    <div className="space-y-16 sm:space-y-20 pb-16 overflow-hidden">
+      {/* 1. Hero Section with 3D Doctor Illustration & Parallax */}
       <section className="relative overflow-hidden bg-gradient-to-b from-emerald-950 via-slate-900 to-slate-900 text-white pt-10 sm:pt-14 pb-14 sm:pb-20 px-3 sm:px-6 lg:px-8">
-        {/* Subtle grid pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-25" />
+        {/* Subtle grid pattern and ambient light orbs */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-25 pointer-events-none" />
+        <div className="absolute top-10 right-10 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
+        <div className="absolute bottom-10 left-10 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative max-w-5xl mx-auto text-center space-y-4 sm:space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] sm:text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{t('Instant Doctor Serial Booking in Bangladesh', 'বাংলাদেশের দ্রুততম ডাক্তার সিরিয়াল বুকিং প্ল্যাটফর্ম')}</span>
+        <div className="relative max-w-6xl mx-auto space-y-8">
+          {/* Top Row: Left Content + Right 3D Visual */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center text-center lg:text-left">
+            {/* Left Content Column */}
+            <motion.div
+              initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="lg:col-span-7 space-y-4 sm:space-y-6"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[11px] sm:text-xs font-semibold shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                <span className="truncate">{t('Instant Doctor Serial Booking in Bangladesh', 'সহজেই ডাক্তার দেখানোর সিরিয়াল নিন')}</span>
+              </div>
+
+              <motion.h1
+                initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-snug sm:leading-tight"
+              >
+                {t('Book Doctor Chamber Serial', 'সহজেই ডাক্তার দেখানোর')} <br className="hidden sm:inline" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-200">
+                  {t('Without Standing in Crowded Queues', 'সিরিয়াল নিন ঘরে বসেই')}
+                </span>
+              </motion.h1>
+
+              <motion.p
+                initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="max-w-xl mx-auto lg:mx-0 text-slate-300 text-xs sm:text-base leading-relaxed"
+              >
+                {t(
+                  'Select doctor, choose your preferred chamber and date, pick your exact serial number (e.g. Serial 03), and receive your unique Appointment ID instantly.',
+                  'ডাক্তার ও চেম্বার পছন্দ করুন, তারিখ নির্বাচন করুন, নির্দিষ্ট সিরিয়াল বেছে নিন এবং সাথে সাথে নিশ্চিত অ্যাপয়েন্টমেন্ট আইডি পান।'
+                )}
+              </motion.p>
+
+              {/* Action CTAs */}
+              <motion.div
+                initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="flex flex-wrap items-center justify-center lg:justify-start gap-3 pt-1"
+              >
+                <motion.button
+                  type="button"
+                  whileHover={shouldReduceMotion ? {} : { scale: 1.04, y: -2 }}
+                  whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
+                  onClick={() => onNavigate('doctors')}
+                  className="px-5 sm:px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>{t('Book Doctor Serial', 'ডাক্তারের সিরিয়াল নিন')}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </motion.button>
+
+                <motion.button
+                  type="button"
+                  whileHover={shouldReduceMotion ? {} : { scale: 1.03, y: -1 }}
+                  whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
+                  onClick={() => onNavigate('doctors')}
+                  className="px-5 sm:px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <Search className="w-4 h-4 text-emerald-300" />
+                  <span>{t('Find Doctors', 'ডাক্তার খুঁজুন')}</span>
+                </motion.button>
+              </motion.div>
+
+              {/* Real-time trust indicators */}
+              <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-xs text-slate-300 font-medium">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>{t('100% BMDC Verified', 'বিএমডিসি ভেরিফাইড')}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-teal-400" />
+                  <span>{t('Zero Waiting Queues', 'দীর্ঘ লাইনে না দাঁড়িয়ে')}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+                  <span>{t('Instant SMS & Ticket', 'তাৎক্ষণিক সিরিয়াল রসিদ')}</span>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Right 3D Medical Illustration Column */}
+            <div className="lg:col-span-5 flex justify-center">
+              <Hero3DVisual
+                onPrimaryCta={() => onNavigate('doctors')}
+                onSecondaryCta={() => onNavigate('doctors')}
+                t={t}
+              />
+            </div>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-snug sm:leading-tight">
-            {t('Book Doctor Chamber Serial', 'ডাক্তারের চেম্বার সিরিয়াল নিন')} <br className="hidden sm:inline" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-200">
-              {t('Without Standing in Crowded Queues', 'দীর্ঘ লাইনে না দাঁড়িয়ে')}
-            </span>
-          </h1>
-
-          <p className="max-w-2xl mx-auto text-slate-300 text-xs sm:text-base leading-relaxed px-1">
-            {t(
-              'Select doctor, choose your preferred chamber and date, pick your exact serial number (e.g. Serial 03), and receive your unique Appointment ID instantly.',
-              'ডাক্তার ও চেম্বার পছন্দ করুন, তারিখ নির্বাচন করুন, নির্দিষ্ট সিরিয়াল বেছে নিন এবং সাথে সাথে নিশ্চিত অ্যাপয়েন্টমেন্ট আইডি পান।'
-            )}
-          </p>
-
-          {/* Search Box Card */}
-          <div className="max-w-4xl mx-auto mt-6 sm:mt-8 bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-xl border border-slate-200 text-slate-800 text-left">
+          {/* 2. Doctor Search Interface (Animated 3D Glass Card) */}
+          <motion.div
+            initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="max-w-4xl mx-auto mt-6 sm:mt-8 bg-white/95 backdrop-blur-md p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl shadow-2xl shadow-slate-950/20 border border-slate-200/90 text-slate-800 text-left relative z-20"
+          >
             <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3">
               {/* Doctor Name / Query */}
-              <div className="sm:col-span-4 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <div className="sm:col-span-4 relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-600 transition-colors">
                   <Search className="w-4 h-4" />
                 </div>
                 <input
@@ -215,19 +302,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder={t('Doctor name, disease, or qualification...', 'ডাক্তারের নাম বা রোগ...')}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90"
                 />
               </div>
 
               {/* Specialty dropdown */}
-              <div className="sm:col-span-3 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <div className="sm:col-span-3 relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-600 transition-colors">
                   <Stethoscope className="w-4 h-4" />
                 </div>
                 <select
                   value={selectedSpecialty}
                   onChange={(e) => setSelectedSpecialty(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90"
                 >
                   <option value="">{t('All Specialties', 'সকল বিভাগ')}</option>
                   {specialties.map((spec) => (
@@ -239,8 +326,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
               </div>
 
               {/* Location / District dropdown */}
-              <div className="sm:col-span-3 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <div className="sm:col-span-3 relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-600 transition-colors">
                   <MapPin className="w-4 h-4" />
                 </div>
                 <select
@@ -253,7 +340,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                     }
                   }}
                   disabled={districtsLoading}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   {districtsLoading ? (
                     <option value="">{t('Loading active districts...', 'সক্রিয় জেলা লোড হচ্ছে...')}</option>
@@ -283,17 +370,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
 
               {/* Submit Button */}
               <div className="sm:col-span-2">
-                <button
+                <motion.button
                   type="submit"
-                  className="w-full h-full min-h-[42px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-sm shadow-emerald-600/30 cursor-pointer"
+                  whileHover={shouldReduceMotion ? {} : { scale: 1.02 }}
+                  whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
+                  className="w-full h-full min-h-[42px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-sm shadow-emerald-600/30 cursor-pointer"
                 >
                   <Search className="w-4 h-4" />
                   <span>{t('Search', 'খুঁজুন')}</span>
-                </button>
+                </motion.button>
               </div>
             </form>
 
-            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 gap-2">
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="font-semibold text-slate-700 shrink-0">{t('Popular:', 'জনপ্রিয়:')}</span>
                 {[
@@ -302,17 +391,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   { name: 'Pediatrics', name_bn: 'শিশু বিশেষজ্ঞ', slug: 'pediatrics' },
                   { name: 'Gynecology', name_bn: 'স্ত্রী ও প্রসূতি রোগ', slug: 'gynecology' },
                 ].map((item) => (
-                  <button
+                  <motion.button
                     key={item.slug}
                     type="button"
+                    whileHover={shouldReduceMotion ? {} : { y: -1 }}
                     onClick={() => {
                       setSelectedSpecialty(item.slug);
                       onSearch({ search: '', specialty: item.slug, location: '' });
                     }}
-                    className="hover:text-emerald-600 underline decoration-slate-300 underline-offset-2 cursor-pointer"
+                    className="hover:text-emerald-600 underline decoration-slate-300 underline-offset-2 cursor-pointer font-medium"
                   >
                     {lang === 'bn' ? item.name_bn : item.name}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
               <span className="text-emerald-600 font-medium flex items-center gap-1 shrink-0">
@@ -320,11 +410,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                 {t('Verified BMDC Doctors Only', 'শুধুমাত্র অনুমোদিত ডাক্তার')}
               </span>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* Specialty Categories */}
+      {/* 3. Medical Specialties (Staggered 3D Animated Cards) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -335,30 +425,36 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
               {t('Find top verified doctors across common medical departments', 'আপনার প্রয়োজনীয় বিভাগে অভিজ্ঞ ও সার্টিফাইড বিশেষজ্ঞ নির্বাচন করুন')}
             </p>
           </div>
-          <button
+          <motion.button
+            whileHover={shouldReduceMotion ? {} : { x: 2 }}
             onClick={() => onNavigate('doctors')}
             className="text-xs sm:text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
           >
             <span>{t('View All Doctors', 'সকল ডাক্তার দেখুন')}</span>
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </motion.button>
         </div>
 
-        {/* Responsive Grid: 2 cols on mobile, 3 cols on md, 4 cols on desktop */}
+        {/* Responsive Grid with 3D Tilt Hover and Staggered Viewport Entrance */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
-          {(showAllSpecialties ? specialties : specialties.slice(0, 12)).map((spec) => {
+          {(showAllSpecialties ? specialties : specialties.slice(0, 12)).map((spec, idx) => {
             const conf = getSpecialtyConfig(spec.slug, spec.name);
             const IconComp = conf.Icon;
             return (
-              <div
+              <motion.div
                 key={spec.id}
+                initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-30px' }}
+                transition={{ duration: 0.4, delay: (idx % 4) * 0.08 }}
+                whileHover={shouldReduceMotion ? {} : { y: -6, scale: 1.02 }}
                 onClick={() => {
                   setSelectedSpecialty(spec.slug);
                   onSearch({ search: '', specialty: spec.slug, location: '' });
                 }}
-                className={`p-3.5 sm:p-6 rounded-xl sm:rounded-2xl bg-white border border-slate-200 ${conf.borderHover} hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group cursor-pointer text-center flex flex-col items-center justify-center min-h-[115px] sm:min-h-[140px]`}
+                className={`p-3.5 sm:p-6 rounded-xl sm:rounded-2xl bg-white border border-slate-200/90 ${conf.borderHover} hover:shadow-xl transition-all duration-300 group cursor-pointer text-center flex flex-col items-center justify-center min-h-[115px] sm:min-h-[140px]`}
               >
-                <div className={`w-10 h-10 sm:w-13 sm:h-13 mx-auto rounded-xl sm:rounded-2xl ${conf.iconBg} flex items-center justify-center group-hover:scale-105 transition-all duration-200 shadow-2xs mb-2 sm:mb-3`}>
+                <div className={`w-10 h-10 sm:w-13 sm:h-13 mx-auto rounded-xl sm:rounded-2xl ${conf.iconBg} flex items-center justify-center group-hover:scale-110 transition-all duration-300 shadow-2xs mb-2 sm:mb-3`}>
                   <IconComp className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <h3 className="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-emerald-600 transition leading-snug line-clamp-1">
@@ -375,7 +471,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                     </p>
                   )
                 )}
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -383,8 +479,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         {/* View All / Show Less Specialties Toggle Button */}
         {specialties.length > 12 && (
           <div className="mt-8 text-center">
-            <button
+            <motion.button
               type="button"
+              whileHover={shouldReduceMotion ? {} : { scale: 1.02 }}
+              whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
               onClick={() => setShowAllSpecialties((prev) => !prev)}
               className="inline-flex items-center gap-2 px-6 py-2.5 sm:py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-emerald-500 text-slate-700 hover:text-emerald-700 font-semibold text-xs sm:text-sm shadow-xs transition-all cursor-pointer group"
             >
@@ -398,73 +496,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   showAllSpecialties ? 'rotate-180 text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'
                 }`}
               />
-            </button>
+            </motion.button>
           </div>
         )}
       </section>
 
-      {/* How It Works */}
+      {/* 4. 3D Booking Process Visualization */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 sm:p-10">
-          <div className="text-center max-w-xl mx-auto mb-10">
-            <span className="text-emerald-600 font-bold text-xs uppercase tracking-wider">
-              {t('Simple 3-Step Process', 'সহজ ৩ ধাপে সিরিয়াল')}
-            </span>
-            <h2 className="text-2xl font-bold text-slate-900 mt-1">
-              {t('How Chamber Serial Booking Works', 'কীভাবে সিরিয়াল বুক করবেন')}
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs relative">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center mb-4 text-sm">
-                01
-              </div>
-              <h3 className="font-bold text-slate-900 text-base mb-2">
-                {t('Find Doctor & Chamber', 'ডাক্তার ও চেম্বার নির্বাচন')}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {t(
-                  'Search approved doctors by specialty or location. Review qualification, BMDC reg number, chamber address, and fees.',
-                  'বিশেষজ্ঞ বা এলাকা দিয়ে অনুমোদিত ডাক্তার খুঁজুন। ডাক্তারের অভিজ্ঞতা ও চেম্বারের ঠিকানা দেখে নিন।'
-                )}
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs relative">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center mb-4 text-sm">
-                02
-              </div>
-              <h3 className="font-bold text-slate-900 text-base mb-2">
-                {t('Pick Date & Serial Number', 'তারিখ ও সিরিয়াল বেছে নিন')}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {t(
-                  'Select an available date. Browse active serial slots (e.g. Serial 01, 02, 03) and select your preferred consultation slot.',
-                  'পছন্দের তারিখ নির্বাচন করে উপলব্ধ সিরিয়াল নম্বরটি সিলেক্ট করুন (যেমন: সিরিয়াল ০৩)।'
-                )}
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs relative">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center mb-4 text-sm">
-                03
-              </div>
-              <h3 className="font-bold text-slate-900 text-base mb-2">
-                {t('Get Confirmed Serial ID', 'তাৎক্ষণিক সিরিয়াল রসিদ')}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {t(
-                  'Instantly receive your official Appointment ID (DS-YYYYMMDD-XXXXX). Double-booking protection guarantees your slot.',
-                  'সাথে সাথে আপনার অনন্য অ্যাপয়েন্টমেন্ট আইডি ও সিরিয়াল কনফার্মেশন পাবেন। কোনো ডুপ্লিকেট বুকিং এর সুযোগ নেই।'
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
+        <BookingProcess3D t={t} onExploreDoctors={() => onNavigate('doctors')} />
       </section>
 
-      {/* Featured Approved Doctors */}
+      {/* 5. Real-Time Platform Statistics (Animated 3D Counters) */}
+      <AnimatedStats3D
+        t={t}
+        lang={lang}
+        fallbackDoctorsCount={featuredDoctors.length}
+        fallbackSpecialtiesCount={specialties.length}
+      />
+
+      {/* 6. Featured Approved Doctors with 3D Depth Cards */}
       {featuredDoctors.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-6">
@@ -476,96 +526,43 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                 {t('Approved by system administration with verified credentials and active chambers', 'অ্যাডমিন কর্তৃক ভেরিফাইড বিএমডিসি সনদপ্রাপ্ত ডাক্তারদের তালিকা')}
               </p>
             </div>
-            <button
+            <motion.button
+              whileHover={shouldReduceMotion ? {} : { x: 2 }}
               onClick={() => onNavigate('doctors')}
               className="text-xs sm:text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
             >
               <span>{t('Browse All Doctors', 'সব ডাক্তার')}</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
+            </motion.button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {featuredDoctors.map((doc) => (
-              <div
+              <DoctorCard3D
                 key={doc.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-lg transition flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start gap-3 mb-3">
-                    <img
-                      src={doc.avatar_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80'}
-                      alt={doc.name}
-                      className="w-14 h-14 rounded-xl object-cover border border-slate-100"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {doc.specialties && doc.specialties.length > 0 ? (
-                          doc.specialties.map((s) => (
-                            <span
-                              key={s.id}
-                              className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded"
-                            >
-                              {lang === 'bn' ? (s.name_bn || s.name) : s.name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                            {lang === 'bn' ? (doc.specialty_name_bn || doc.specialty_name || 'বিশেষজ্ঞ') : (doc.specialty_name || 'Specialist')}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-slate-900 text-sm mt-1 truncate">
-                        {doc.title} {doc.name}
-                      </h3>
-                      <p className="text-[11px] text-slate-500 truncate">BMDC: {doc.bmdc_number}</p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-600 line-clamp-2 mb-3 min-h-[32px]">
-                    {doc.qualification}
-                  </p>
-
-                  <div className="space-y-1.5 text-xs text-slate-500 pt-2 border-t border-slate-100">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{doc.chambers_list?.[0] || 'Active Chamber'}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="flex items-center gap-1 text-slate-600">
-                        <Award className="w-3.5 h-3.5 text-amber-500" />
-                        {doc.experience_years}+ years exp
-                      </span>
-                      <span className="font-bold text-slate-900">
-                        ৳{doc.consultation_fee}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
-                  <button
-                    onClick={() => onSelectDoctor(doc.slug || doc.id)}
-                    className="w-full py-2 rounded-lg text-xs font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                  >
-                    {t('Profile', 'প্রোফাইল')}
-                  </button>
-                  <button
-                    onClick={() => onSelectDoctor(doc.slug || doc.id)}
-                    className="w-full py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer"
-                  >
-                    {t('Get Serial', 'সিরিয়াল নিন')}
-                  </button>
-                </div>
-              </div>
+                doctor={doc}
+                lang={lang}
+                t={t}
+                onSelectDoctor={onSelectDoctor}
+              />
             ))}
           </div>
         </section>
       )}
 
-      {/* Official Daktar Serial Android Mobile App Showcase Banner */}
+      {/* 7. Patient Testimonials (3D Slide Transitions) */}
+      <Testimonials3D t={t} lang={lang} />
+
+      {/* 8. Official Daktar Serial Android Mobile App Showcase Banner */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <DownloadApkButton variant="banner" />
+        <motion.div
+          initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+        >
+          <DownloadApkButton variant="banner" />
+        </motion.div>
       </section>
     </div>
   );

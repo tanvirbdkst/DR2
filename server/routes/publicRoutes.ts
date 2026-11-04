@@ -502,4 +502,32 @@ router.get('/site-settings', async (req, res) => {
   }
 });
 
+// 7. Get Real-Time Public Statistics (Strictly Real Data from Database)
+router.get('/stats', async (req, res) => {
+  try {
+    const [docRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM doctors WHERE approval_status = ?', ['approved']);
+    const [specRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM specialties WHERE status = ?', ['active']);
+    const [chamberRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM chambers');
+    const [apptRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM appointments');
+    const [districtRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(DISTINCT city) as count FROM chambers WHERE city IS NOT NULL AND city != ""');
+
+    res.json({
+      doctors: Number((docRows as any)?.[0]?.count || 0),
+      specialties: Number((specRows as any)?.[0]?.count || 0),
+      chambers: Number((chamberRows as any)?.[0]?.count || 0),
+      appointments: Number((apptRows as any)?.[0]?.count || 0),
+      coverageCities: Number((districtRows as any)?.[0]?.count || 0) || 1,
+    });
+  } catch (err: any) {
+    res.json({
+      doctors: 0,
+      specialties: 0,
+      chambers: 0,
+      appointments: 0,
+      coverageCities: 0,
+    });
+  }
+});
+
 export default router;
+
