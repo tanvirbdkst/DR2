@@ -509,7 +509,10 @@ router.get('/stats', async (req, res) => {
     const [specRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM specialties WHERE status = ?', ['active']);
     const [chamberRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM chambers');
     const [apptRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as count FROM appointments');
-    const [districtRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(DISTINCT city) as count FROM chambers WHERE city IS NOT NULL AND city != ""');
+    const [districtRows] = await pool.query<RowDataPacket[]>(
+      'SELECT COUNT(DISTINCT city) as count FROM chambers WHERE city IS NOT NULL AND city != ?',
+      ['']
+    );
 
     res.json({
       doctors: Number((docRows as any)?.[0]?.count || 0),
