@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Building2, Award } from 'lucide-react';
+import { Building2, Award, ShieldCheck, ArrowRight } from 'lucide-react';
 import { DoctorProfile } from '../types.js';
 
 interface DoctorCard3DProps {
@@ -47,11 +47,14 @@ export const DoctorCard3D: React.FC<DoctorCard3DProps> = ({
         transformStyle: 'preserve-3d',
       }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="group relative rounded-2xl bg-white border border-slate-200/90 p-5 shadow-xs hover:shadow-2xl hover:shadow-emerald-950/10 hover:border-emerald-300 transition-colors duration-300 flex flex-col justify-between"
+      className="group relative rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 p-5 shadow-xs hover:shadow-2xl hover:shadow-blue-500/15 transition-all duration-300 flex flex-col justify-between overflow-hidden"
     >
-      <div>
+      {/* Subtle Carefinity gradient sheen in card background */}
+      <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-blue-500/5 via-cyan-500/5 to-transparent pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity" />
+
+      <div className="relative z-10">
         <div className="flex items-start gap-3 mb-3">
-          <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-slate-100 shadow-2xs">
+          <div className="relative w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-slate-100 shadow-2xs ring-1 ring-blue-500/10">
             <img
               src={doctor.avatar_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80'}
               alt={doctor.name}
@@ -65,21 +68,24 @@ export const DoctorCard3D: React.FC<DoctorCard3DProps> = ({
                 doctor.specialties.map((s) => (
                   <span
                     key={s.id}
-                    className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded"
+                    className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-md"
                   >
                     {lang === 'bn' ? (s.name_bn || s.name) : s.name}
                   </span>
                 ))
               ) : (
-                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
                   {lang === 'bn' ? (doctor.specialty_name_bn || doctor.specialty_name || 'বিশেষজ্ঞ') : (doctor.specialty_name || 'Specialist')}
                 </span>
               )}
             </div>
-            <h3 className="font-bold text-slate-900 text-sm mt-1 truncate group-hover:text-emerald-700 transition-colors">
+            <h3 className="font-bold text-slate-900 text-sm mt-1 truncate group-hover:text-blue-600 transition-colors">
               {doctor.title} {doctor.name}
             </h3>
-            <p className="text-[11px] text-slate-500 truncate">BMDC: {doctor.bmdc_number}</p>
+            <p className="text-[11px] text-slate-500 flex items-center gap-1 truncate mt-0.5">
+              <ShieldCheck className="w-3 h-3 text-cyan-600 shrink-0" />
+              <span>BMDC: {doctor.bmdc_number}</span>
+            </p>
           </div>
         </div>
 
@@ -97,14 +103,14 @@ export const DoctorCard3D: React.FC<DoctorCard3DProps> = ({
               <Award className="w-3.5 h-3.5 text-amber-500" />
               {doctor.experience_years}+ years exp
             </span>
-            <span className="font-extrabold text-slate-900">
+            <span className="font-extrabold text-blue-900 text-xs sm:text-sm">
               ৳{doctor.consultation_fee}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
+      <div className="relative z-10 grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
         <button
           type="button"
           onClick={() => onSelectDoctor(doctor.slug || doctor.id)}
@@ -115,9 +121,10 @@ export const DoctorCard3D: React.FC<DoctorCard3DProps> = ({
         <button
           type="button"
           onClick={() => onSelectDoctor(doctor.slug || doctor.id)}
-          className="w-full py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs shadow-emerald-600/30 hover:shadow-md transition-all cursor-pointer text-center"
+          className="w-full py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-xs shadow-blue-600/30 hover:shadow-md transition-all cursor-pointer text-center flex items-center justify-center gap-1"
         >
-          {t('Get Serial', 'সিরিয়াল নিন')}
+          <span>{t('Get Serial', 'সিরিয়াল নিন')}</span>
+          <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
     </motion.div>

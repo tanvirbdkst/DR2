@@ -52,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
                 aria-pressed={lang === 'bn'}
                 className={`px-2 py-0.5 rounded font-medium transition cursor-pointer flex items-center gap-1 ${
                   lang === 'bn'
-                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -64,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
                 aria-pressed={lang === 'en'}
                 className={`px-2 py-0.5 rounded font-medium transition cursor-pointer flex items-center gap-1 ${
                   lang === 'en'
-                    ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -86,10 +86,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
             whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
             aria-label="Doctor Serial — Home"
             title="Doctor Serial"
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 text-left"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 text-left"
           >
             <div className="relative w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl overflow-hidden shadow-xs ring-1 ring-slate-900/5 bg-slate-50 flex items-center justify-center p-0.5">
-              <div className="absolute inset-0 bg-emerald-500/10 rounded-xl animate-pulse pointer-events-none" />
+              <div className="absolute inset-0 bg-blue-500/10 rounded-xl animate-pulse pointer-events-none" />
               <img
                 src="/logo.png"
                 alt="Doctor Serial"
@@ -98,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
             </div>
             <div className="flex flex-col text-left">
               <span className="text-sm sm:text-lg md:text-xl font-bold tracking-tight text-slate-900 leading-tight">
-                Doctor <span className="text-emerald-600">Serial</span>
+                Doctor <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500 font-extrabold">Serial</span>
               </span>
               <span className="text-[8px] sm:text-[10px] uppercase font-semibold tracking-wider text-slate-400 block -mt-0.5">
                 {t('Chamber Booking', 'চেম্বার বুকিং')}
@@ -113,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
               onClick={() => navigateTo('home')}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
                 currentView === 'home'
-                  ? 'bg-emerald-50 text-emerald-700 font-bold shadow-2xs'
+                  ? 'bg-blue-50 text-blue-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -124,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
               onClick={() => navigateTo('doctors')}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
                 currentView === 'doctors'
-                  ? 'bg-emerald-50 text-emerald-700 font-bold shadow-2xs'
+                  ? 'bg-blue-50 text-blue-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -291,13 +291,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
               <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   onClick={() => navigateTo('login')}
-                  className="px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                  className="px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium text-slate-700 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                 >
                   {t('Sign In', 'সাইন ইন')}
                 </button>
                 <button
                   onClick={() => navigateTo('register-patient')}
-                  className="hidden xs:inline-flex px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition cursor-pointer"
+                  className="hidden xs:inline-flex px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 rounded-xl shadow-xs shadow-blue-500/30 transition cursor-pointer"
                 >
                   {t('Register', 'নিবন্ধন')}
                 </button>

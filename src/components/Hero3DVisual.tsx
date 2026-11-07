@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Stethoscope, Heart, Calendar, Hospital, ShieldCheck, Sparkles, Plus, Clock } from 'lucide-react';
+import { Stethoscope, Heart, Calendar, Hospital, ShieldCheck, Sparkles, Activity, Plus } from 'lucide-react';
 import doctor3dImage from '../assets/images/hero_3d_doctor_1793815477088.jpg';
 
 interface Hero3DVisualProps {
@@ -38,7 +38,7 @@ export const Hero3DVisual: React.FC<Hero3DVisualProps> = ({ onPrimaryCta, onSeco
     setMousePos({ x: 0, y: 0 });
   };
 
-  // Parallax calculations
+  // 3D Parallax angle calculations with Carefinity smooth responsiveness
   const rotateX = isHovered && !isMobile && !shouldReduceMotion ? -mousePos.y * 14 : 0;
   const rotateY = isHovered && !isMobile && !shouldReduceMotion ? mousePos.x * 14 : 0;
 
@@ -48,41 +48,54 @@ export const Hero3DVisual: React.FC<Hero3DVisualProps> = ({ onPrimaryCta, onSeco
       onMouseEnter={() => setIsHovered(true)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="relative w-full max-w-lg lg:max-w-xl mx-auto perspective-1000 select-none"
+      className="relative w-full max-w-lg lg:max-w-xl mx-auto select-none"
       style={{ perspective: '1200px' }}
     >
-      {/* Dynamic 3D depth container */}
+      {/* Continuous gentle floating motion in 3D space */}
       <motion.div
-        animate={{
-          rotateX,
-          rotateY,
-          transformStyle: 'preserve-3d',
-        }}
-        transition={{ type: 'spring', damping: 20, stiffness: 120 }}
-        className="relative rounded-3xl p-3 sm:p-5 bg-gradient-to-b from-white/90 via-white/80 to-emerald-50/70 backdrop-blur-md border border-white/80 shadow-2xl shadow-emerald-950/20"
+        animate={
+          shouldReduceMotion
+            ? { rotateX, rotateY }
+            : {
+                rotateX,
+                rotateY,
+                y: isHovered ? -4 : [-4, 6, -4],
+                transformStyle: 'preserve-3d',
+              }
+        }
+        transition={
+          shouldReduceMotion
+            ? { type: 'spring', damping: 20, stiffness: 120 }
+            : {
+                y: { duration: 6, repeat: Infinity, ease: 'easeInOut' },
+                rotateX: { type: 'spring', damping: 20, stiffness: 120 },
+                rotateY: { type: 'spring', damping: 20, stiffness: 120 },
+              }
+        }
+        className="relative rounded-3xl p-3 sm:p-5 bg-gradient-to-b from-white/95 via-white/85 to-blue-50/70 backdrop-blur-md border border-white/90 shadow-2xl shadow-blue-950/20"
       >
-        {/* Soft Ambient Glow in 3D space */}
-        <div className="absolute -inset-4 bg-gradient-to-tr from-emerald-500/15 via-teal-400/20 to-sky-400/15 rounded-3xl blur-2xl -z-10 pointer-events-none" />
+        {/* Soft Ambient Carefinity Glow in 3D space */}
+        <div className="absolute -inset-4 bg-gradient-to-tr from-blue-600/20 via-cyan-400/25 to-sky-300/20 rounded-3xl blur-2xl -z-10 pointer-events-none" />
 
-        {/* Floating 3D Badge: Instant Chamber Serial */}
+        {/* Floating 3D Badge: Live Serial with animated electric cyan pulse */}
         <motion.div
           animate={
             shouldReduceMotion
               ? {}
               : {
-                  y: [-4, 6, -4],
-                  rotateZ: [-1, 1.5, -1],
+                  y: [-4, 5, -4],
+                  rotateZ: [-1, 1.2, -1],
                 }
           }
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-3 sm:-top-5 -left-2 sm:-left-4 z-20 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-white/95 backdrop-blur-md shadow-lg shadow-emerald-900/10 border border-emerald-100 text-slate-800 pointer-events-none"
+          transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute -top-3 sm:-top-5 -left-2 sm:-left-4 z-20 flex items-center gap-2.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-white/95 backdrop-blur-md shadow-xl shadow-blue-900/10 border border-blue-100 text-slate-800 pointer-events-none"
         >
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-xs">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white flex items-center justify-center shadow-xs">
             <Calendar className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            <span className="text-xs sm:text-sm font-extrabold text-emerald-900 tracking-tight leading-tight">
+            <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shrink-0" />
+            <span className="text-xs sm:text-sm font-extrabold text-blue-950 tracking-tight leading-tight">
               {t('Live Serial', 'লাইভ সিরিয়াল')}
             </span>
           </div>
@@ -98,14 +111,14 @@ export const Hero3DVisual: React.FC<Hero3DVisualProps> = ({ onPrimaryCta, onSeco
                   rotateZ: [1, -1, 1],
                 }
           }
-          transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-          className="absolute -bottom-3 sm:-bottom-4 -right-2 sm:-right-4 z-20 flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-white/95 backdrop-blur-md shadow-lg shadow-emerald-900/10 border border-teal-100 text-slate-800 text-xs sm:text-sm font-semibold pointer-events-none"
+          transition={{ duration: 5.2, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+          className="absolute -bottom-3 sm:-bottom-4 -right-2 sm:-right-4 z-20 flex items-center gap-2.5 px-3.5 sm:px-4 py-2 rounded-2xl bg-white/95 backdrop-blur-md shadow-xl shadow-blue-900/10 border border-cyan-100 text-slate-800 text-xs sm:text-sm font-semibold pointer-events-none"
         >
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 text-white flex items-center justify-center shadow-xs">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center shadow-xs">
             <ShieldCheck className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </div>
           <div className="flex flex-col text-left">
-            <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-teal-700 font-bold leading-tight">
+            <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-cyan-700 font-bold leading-tight">
               {t('BMDC Verified', 'বিএমডিসি ভেরিফাইড')}
             </span>
             <span className="text-xs font-extrabold text-slate-900 leading-tight">
@@ -114,22 +127,23 @@ export const Hero3DVisual: React.FC<Hero3DVisualProps> = ({ onPrimaryCta, onSeco
           </div>
         </motion.div>
 
-        {/* Floating Medical 3D Icon Orbs */}
+        {/* Floating 3D Cardiac Vital Telemetry Orb */}
         <motion.div
           animate={
             shouldReduceMotion
               ? {}
               : {
-                  y: [-8, 4, -8],
+                  y: [-7, 5, -7],
                   x: [2, -2, 2],
                 }
           }
           transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute top-1/4 -right-4 sm:-right-6 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white shadow-xl shadow-rose-500/20 border border-rose-100 flex items-center justify-center text-rose-500 pointer-events-none"
+          className="absolute top-1/4 -right-4 sm:-right-6 z-20 w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-white shadow-xl shadow-cyan-500/20 border border-cyan-100 flex items-center justify-center text-cyan-600 pointer-events-none"
         >
-          <Heart className="w-5 h-5 sm:w-6 sm:h-6 fill-rose-500 text-rose-500" />
+          <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-600 animate-pulse" />
         </motion.div>
 
+        {/* Floating 3D Stethoscope Orb */}
         <motion.div
           animate={
             shouldReduceMotion
@@ -139,24 +153,24 @@ export const Hero3DVisual: React.FC<Hero3DVisualProps> = ({ onPrimaryCta, onSeco
                   x: [-3, 3, -3],
                 }
           }
-          transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-          className="absolute bottom-1/4 -left-4 sm:-left-5 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-white shadow-xl shadow-teal-500/20 border border-teal-100 flex items-center justify-center text-teal-600 pointer-events-none"
+          transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
+          className="absolute bottom-1/4 -left-4 sm:-left-5 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white shadow-xl shadow-blue-500/20 border border-blue-100 flex items-center justify-center text-blue-600 pointer-events-none"
         >
-          <Stethoscope className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5" />
+          <Stethoscope className="w-5 h-5 sm:w-6 sm:h-6" />
         </motion.div>
 
         {/* Main 3D Artwork Frame */}
-        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-slate-100/80 via-white to-emerald-50/50 border border-slate-200/60 shadow-inner">
+        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-slate-100/90 via-white to-blue-50/50 border border-slate-200/60 shadow-inner">
           <img
             src={doctor3dImage}
-            alt="3D Medical Illustration - Daktar Serial Doctor"
+            alt="Carefinity 3D Medical Hero - Daktar Serial"
             className="w-full h-auto object-cover object-center transform transition-transform duration-500 group-hover:scale-102"
             loading="eager"
             width={640}
             height={360}
           />
 
-          {/* Bottom subtle overlay shadow inside artwork */}
+          {/* Bottom subtle gradient shadow inside artwork */}
           <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-900/10 to-transparent pointer-events-none" />
         </div>
       </motion.div>

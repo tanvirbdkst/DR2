@@ -250,14 +250,14 @@ export const DownloadApkButton: React.FC<DownloadApkButtonProps> = ({
   // 4. Banner / Card variant for Home Page feature showcase
   return (
     <>
-      <div className={`relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white p-4 sm:p-8 border border-slate-700/60 shadow-xl ${className}`}>
-        {/* Decorative background circle */}
-        <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
+      <div className={`relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0A192F] via-[#0E2849] to-[#0A192F] text-white p-4 sm:p-8 border border-slate-700/60 shadow-xl ${className}`}>
+        {/* Decorative background glow */}
+        <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-cyan-500/15 blur-2xl pointer-events-none" />
 
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
           <div className="md:col-span-8 space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-              <AndroidIcon className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-semibold">
+              <AndroidIcon className="w-3.5 h-3.5 text-cyan-400" />
               <span>{t('Daktar Serial Mobile Experience', 'ডাক্তার সিরিয়াল অফিশিয়াল মোবাইল অ্যাপ')}</span>
             </div>
 
@@ -274,15 +274,15 @@ export const DownloadApkButton: React.FC<DownloadApkButtonProps> = ({
 
             <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-slate-300">
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-cyan-400" />
                 <span>{t('Instant Push Alerts', 'লাইভ নোটিফিকেশন')}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-cyan-400" />
                 <span>{t('Chamber Queue Status', 'রিয়েল-টাইম সিরিয়াল')}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-cyan-400" />
                 <span>{t('No Queue Waiting', 'বিনা লাইনে সেবা')}</span>
               </div>
             </div>
@@ -293,11 +293,11 @@ export const DownloadApkButton: React.FC<DownloadApkButtonProps> = ({
               type="button"
               onClick={handleDownload}
               disabled={isChecking}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm shadow-xl shadow-emerald-500/20 hover:scale-[1.02] transition-all cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-400 to-sky-400 hover:from-blue-600 hover:to-cyan-500 text-slate-950 font-extrabold text-sm shadow-xl shadow-cyan-500/20 hover:scale-[1.02] transition-all cursor-pointer"
             >
               <AndroidIcon className="w-6 h-6 text-slate-950" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[10px] uppercase tracking-wider text-emerald-950 font-bold">
+                <span className="text-[10px] uppercase tracking-wider text-slate-900 font-bold">
                   {t('Direct APK Download', 'সরাসরি ডাউনলোড')}
                 </span>
                 <span className="text-sm font-black text-slate-950">
@@ -308,7 +308,7 @@ export const DownloadApkButton: React.FC<DownloadApkButtonProps> = ({
             </button>
 
             <span className="text-[11px] text-slate-400 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
               <span>{t('Free • Safe APK • Package: bd.daktarserial.app', 'সম্পূর্ণ ফ্রি • নিরাপদ APK')}</span>
             </span>
           </div>

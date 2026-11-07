@@ -22,78 +22,79 @@ const getSpecialtyConfig = (slug: string, name?: string) => {
   if (s.includes('cardio') || s.includes('heart') || s.includes('হৃদ')) {
     return {
       Icon: HeartPulse,
-      iconBg: 'bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white',
+      iconBg: 'bg-rose-50 text-rose-600 group-hover:bg-gradient-to-tr group-hover:from-rose-500 group-hover:to-cyan-500 group-hover:text-white',
       borderHover: 'hover:border-rose-400 hover:shadow-rose-500/15',
     };
   }
   if (s.includes('dermatol') || s.includes('skin') || s.includes('চর্ম')) {
     return {
       Icon: Sparkles,
-      iconBg: 'bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white',
+      iconBg: 'bg-purple-50 text-purple-600 group-hover:bg-gradient-to-tr group-hover:from-purple-500 group-hover:to-blue-500 group-hover:text-white',
       borderHover: 'hover:border-purple-400 hover:shadow-purple-500/15',
     };
   }
   if (s.includes('dental') || s.includes('tooth') || s.includes('দস্ত') || s.includes('দাঁত')) {
     return {
       Icon: Volume2,
-      iconBg: 'bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white',
+      iconBg: 'bg-sky-50 text-sky-600 group-hover:bg-gradient-to-tr group-hover:from-sky-500 group-hover:to-cyan-500 group-hover:text-white',
       borderHover: 'hover:border-sky-400 hover:shadow-sky-500/15',
     };
   }
   if (s.includes('ent') || s.includes('ear') || s.includes('throat') || s.includes('নাক') || s.includes('কান')) {
     return {
       Icon: Volume2,
-      iconBg: 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white',
+      iconBg: 'bg-teal-50 text-teal-600 group-hover:bg-gradient-to-tr group-hover:from-teal-500 group-hover:to-blue-500 group-hover:text-white',
       borderHover: 'hover:border-teal-400 hover:shadow-teal-500/15',
     };
   }
   if (s.includes('gastro') || s.includes('পরিপাক') || s.includes('liver')) {
     return {
       Icon: Volume2,
-      iconBg: 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white',
-      borderHover: 'hover:border-teal-400 hover:shadow-teal-500/15',
+      iconBg: 'bg-cyan-50 text-cyan-600 group-hover:bg-gradient-to-tr group-hover:from-cyan-500 group-hover:to-blue-500 group-hover:text-white',
+      borderHover: 'hover:border-cyan-400 hover:shadow-cyan-500/15',
     };
   }
   if (s.includes('gynecol') || s.includes('women') || s.includes('obs') || s.includes('স্ত্রী') || s.includes('প্রসূতি')) {
     return {
       Icon: Baby,
-      iconBg: 'bg-pink-50 text-pink-600 group-hover:bg-pink-600 group-hover:text-white',
+      iconBg: 'bg-pink-50 text-pink-600 group-hover:bg-gradient-to-tr group-hover:from-pink-500 group-hover:to-cyan-500 group-hover:text-white',
       borderHover: 'hover:border-pink-400 hover:shadow-pink-500/15',
     };
   }
   if (s.includes('pediatric') || s.includes('child') || s.includes('শিশু')) {
     return {
       Icon: Smile,
-      iconBg: 'bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white',
+      iconBg: 'bg-amber-50 text-amber-600 group-hover:bg-gradient-to-tr group-hover:from-amber-500 group-hover:to-blue-500 group-hover:text-white',
       borderHover: 'hover:border-amber-400 hover:shadow-amber-500/15',
     };
   }
   if (s.includes('orthoped') || s.includes('bone') || s.includes('হাড়') || s.includes('হাড়')) {
     return {
       Icon: Activity,
-      iconBg: 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white',
+      iconBg: 'bg-blue-50 text-blue-600 group-hover:bg-gradient-to-tr group-hover:from-blue-600 group-hover:to-cyan-500 group-hover:text-white',
       borderHover: 'hover:border-blue-400 hover:shadow-blue-500/15',
     };
   }
   if (s.includes('neuro') || s.includes('brain') || s.includes('psychiat') || s.includes('নিউরো') || s.includes('মানসিক')) {
     return {
       Icon: Brain,
-      iconBg: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
+      iconBg: 'bg-indigo-50 text-indigo-600 group-hover:bg-gradient-to-tr group-hover:from-indigo-600 group-hover:to-cyan-500 group-hover:text-white',
       borderHover: 'hover:border-indigo-400 hover:shadow-indigo-500/15',
     };
   }
   if (s.includes('eye') || s.includes('ophthalm') || s.includes('চক্ষু')) {
     return {
       Icon: Eye,
-      iconBg: 'bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white',
+      iconBg: 'bg-cyan-50 text-cyan-600 group-hover:bg-gradient-to-tr group-hover:from-cyan-500 group-hover:to-blue-600 group-hover:text-white',
       borderHover: 'hover:border-cyan-400 hover:shadow-cyan-500/15',
     };
   }
 
+  // Default Carefinity medical blue styling
   return {
     Icon: Stethoscope,
-    iconBg: 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
-    borderHover: 'hover:border-emerald-400 hover:shadow-emerald-500/15',
+    iconBg: 'bg-blue-50 text-blue-600 group-hover:bg-gradient-to-tr group-hover:from-blue-600 group-hover:to-cyan-500 group-hover:text-white',
+    borderHover: 'hover:border-blue-400 hover:shadow-blue-500/15',
   };
 };
 
@@ -180,12 +181,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
 
   return (
     <div className="space-y-16 sm:space-y-20 pb-16 overflow-hidden">
-      {/* 1. Hero Section with 3D Doctor Illustration & Parallax */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-emerald-950 via-slate-900 to-slate-900 text-white pt-10 sm:pt-14 pb-14 sm:pb-20 px-3 sm:px-6 lg:px-8">
-        {/* Subtle grid pattern and ambient light orbs */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-25 pointer-events-none" />
-        <div className="absolute top-10 right-10 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
-        <div className="absolute bottom-10 left-10 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* 1. Carefinity 3D Hero Section */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#0A192F] via-[#0E2849] to-[#0A192F] text-white pt-10 sm:pt-14 pb-14 sm:pb-20 px-3 sm:px-6 lg:px-8">
+        {/* Futuristic medical telemetry grid & ambient light orbs */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e3a5f_1px,transparent_1px),linear-gradient(to_bottom,#1e3a5f_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30 pointer-events-none" />
+        <div className="absolute top-10 right-10 w-96 h-96 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none animate-pulse" />
+        <div className="absolute bottom-10 left-10 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-6xl mx-auto space-y-8">
           {/* Top Row: Left Content + Right 3D Visual */}
@@ -197,9 +198,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
               transition={{ duration: 0.6 }}
               className="lg:col-span-7 space-y-4 sm:space-y-6"
             >
-              <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[11px] sm:text-xs font-semibold shadow-xs">
-                <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                <span className="truncate">{t('Instant Doctor Serial Booking in Bangladesh', 'সহজেই ডাক্তার দেখানোর সিরিয়াল নিন')}</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 text-[11px] sm:text-xs font-semibold shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                <span className="truncate">{t('Carefinity Healthcare Booking Experience', 'সহজেই ডাক্তার দেখানোর সিরিয়াল নিন')}</span>
               </div>
 
               <motion.h1
@@ -209,7 +210,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-snug sm:leading-tight"
               >
                 {t('Book Doctor Chamber Serial', 'সহজেই ডাক্তার দেখানোর')} <br className="hidden sm:inline" />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-200">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-sky-200">
                   {t('Without Standing in Crowded Queues', 'সিরিয়াল নিন ঘরে বসেই')}
                 </span>
               </motion.h1>
@@ -226,7 +227,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                 )}
               </motion.p>
 
-              {/* Action CTAs */}
+              {/* Action CTAs in Carefinity styling */}
               <motion.div
                 initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -238,7 +239,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   whileHover={shouldReduceMotion ? {} : { scale: 1.04, y: -2 }}
                   whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
                   onClick={() => onNavigate('doctors')}
-                  className="px-5 sm:px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all cursor-pointer flex items-center gap-2"
+                  className="px-5 sm:px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all cursor-pointer flex items-center gap-2"
                 >
                   <Calendar className="w-4 h-4" />
                   <span>{t('Book Doctor Serial', 'ডাক্তারের সিরিয়াল নিন')}</span>
@@ -252,23 +253,23 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   onClick={() => onNavigate('doctors')}
                   className="px-5 sm:px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer flex items-center gap-2"
                 >
-                  <Search className="w-4 h-4 text-emerald-300" />
+                  <Search className="w-4 h-4 text-cyan-300" />
                   <span>{t('Find Doctors', 'ডাক্তার খুঁজুন')}</span>
                 </motion.button>
               </motion.div>
 
-              {/* Real-time trust indicators */}
+              {/* Real-time trust telemetry indicators */}
               <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-xs text-slate-300 font-medium">
                 <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <ShieldCheck className="w-4 h-4 text-cyan-400" />
                   <span>{t('100% BMDC Verified', 'বিএমডিসি ভেরিফাইড')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-teal-400" />
+                  <Clock className="w-4 h-4 text-sky-400" />
                   <span>{t('Zero Waiting Queues', 'দীর্ঘ লাইনে না দাঁড়িয়ে')}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+                  <CheckCircle2 className="w-4 h-4 text-blue-400" />
                   <span>{t('Instant SMS & Ticket', 'তাৎক্ষণিক সিরিয়াল রসিদ')}</span>
                 </div>
               </div>
@@ -284,17 +285,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
             </div>
           </div>
 
-          {/* 2. Doctor Search Interface (Animated 3D Glass Card) */}
+          {/* 2. Carefinity Doctor Search Dock (3D Glassmorphic Card) */}
           <motion.div
             initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.35 }}
-            className="max-w-4xl mx-auto mt-6 sm:mt-8 bg-white/95 backdrop-blur-md p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl shadow-2xl shadow-slate-950/20 border border-slate-200/90 text-slate-800 text-left relative z-20"
+            className="max-w-4xl mx-auto mt-6 sm:mt-8 bg-white/95 backdrop-blur-md p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl shadow-2xl shadow-blue-950/20 border border-slate-200/90 text-slate-800 text-left relative z-20"
           >
             <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3">
               {/* Doctor Name / Query */}
               <div className="sm:col-span-4 relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">
                   <Search className="w-4 h-4" />
                 </div>
                 <input
@@ -302,19 +303,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder={t('Doctor name, disease, or qualification...', 'ডাক্তারের নাম বা রোগ...')}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90"
                 />
               </div>
 
               {/* Specialty dropdown */}
               <div className="sm:col-span-3 relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">
                   <Stethoscope className="w-4 h-4" />
                 </div>
                 <select
                   value={selectedSpecialty}
                   onChange={(e) => setSelectedSpecialty(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90"
                 >
                   <option value="">{t('All Specialties', 'সকল বিভাগ')}</option>
                   {specialties.map((spec) => (
@@ -327,7 +328,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
 
               {/* Location / District dropdown */}
               <div className="sm:col-span-3 relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-600 transition-colors">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">
                   <MapPin className="w-4 h-4" />
                 </div>
                 <select
@@ -340,7 +341,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                     }
                   }}
                   disabled={districtsLoading}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-xs sm:text-sm outline-hidden transition bg-white/90 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   {districtsLoading ? (
                     <option value="">{t('Loading active districts...', 'সক্রিয় জেলা লোড হচ্ছে...')}</option>
@@ -374,7 +375,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                   type="submit"
                   whileHover={shouldReduceMotion ? {} : { scale: 1.02 }}
                   whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
-                  className="w-full h-full min-h-[42px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-sm shadow-emerald-600/30 cursor-pointer"
+                  className="w-full h-full min-h-[42px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-sm shadow-blue-600/30 cursor-pointer"
                 >
                   <Search className="w-4 h-4" />
                   <span>{t('Search', 'খুঁজুন')}</span>
@@ -399,14 +400,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                       setSelectedSpecialty(item.slug);
                       onSearch({ search: '', specialty: item.slug, location: '' });
                     }}
-                    className="hover:text-emerald-600 underline decoration-slate-300 underline-offset-2 cursor-pointer font-medium"
+                    className="hover:text-blue-600 underline decoration-slate-300 underline-offset-2 cursor-pointer font-medium"
                   >
                     {lang === 'bn' ? item.name_bn : item.name}
                   </motion.button>
                 ))}
               </div>
-              <span className="text-emerald-600 font-medium flex items-center gap-1 shrink-0">
-                <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="text-blue-600 font-medium flex items-center gap-1 shrink-0">
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" />
                 {t('Verified BMDC Doctors Only', 'শুধুমাত্র অনুমোদিত ডাক্তার')}
               </span>
             </div>
@@ -414,7 +415,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         </div>
       </section>
 
-      {/* 3. Medical Specialties (Staggered 3D Animated Cards) */}
+      {/* 3. Medical Specialties (Carefinity Staggered 3D Cards) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -428,7 +429,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
           <motion.button
             whileHover={shouldReduceMotion ? {} : { x: 2 }}
             onClick={() => onNavigate('doctors')}
-            className="text-xs sm:text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+            className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
           >
             <span>{t('View All Doctors', 'সকল ডাক্তার দেখুন')}</span>
             <ArrowRight className="w-4 h-4" />
@@ -457,7 +458,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
                 <div className={`w-10 h-10 sm:w-13 sm:h-13 mx-auto rounded-xl sm:rounded-2xl ${conf.iconBg} flex items-center justify-center group-hover:scale-110 transition-all duration-300 shadow-2xs mb-2 sm:mb-3`}>
                   <IconComp className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <h3 className="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-emerald-600 transition leading-snug line-clamp-1">
+                <h3 className="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-blue-600 transition leading-snug line-clamp-1">
                   {lang === 'bn' ? (spec.name_bn || spec.name) : spec.name}
                 </h3>
                 {lang === 'bn' ? (
@@ -484,7 +485,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
               whileHover={shouldReduceMotion ? {} : { scale: 1.02 }}
               whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
               onClick={() => setShowAllSpecialties((prev) => !prev)}
-              className="inline-flex items-center gap-2 px-6 py-2.5 sm:py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-emerald-500 text-slate-700 hover:text-emerald-700 font-semibold text-xs sm:text-sm shadow-xs transition-all cursor-pointer group"
+              className="inline-flex items-center gap-2 px-6 py-2.5 sm:py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-blue-400 text-slate-700 hover:text-blue-700 font-semibold text-xs sm:text-sm shadow-xs transition-all cursor-pointer group"
             >
               <span>
                 {showAllSpecialties
@@ -493,7 +494,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
               </span>
               <ChevronDown
                 className={`w-4 h-4 transition-transform duration-300 ${
-                  showAllSpecialties ? 'rotate-180 text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'
+                  showAllSpecialties ? 'rotate-180 text-blue-600' : 'text-slate-400 group-hover:text-blue-600'
                 }`}
               />
             </motion.button>
@@ -501,12 +502,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         )}
       </section>
 
-      {/* 4. 3D Booking Process Visualization */}
+      {/* 4. Carefinity 3D Booking Process Visualization */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <BookingProcess3D t={t} onExploreDoctors={() => onNavigate('doctors')} />
       </section>
 
-      {/* 5. Real-Time Platform Statistics (Animated 3D Counters) */}
+      {/* 5. Real-Time Platform Statistics (Carefinity Telemetry Counters) */}
       <AnimatedStats3D
         t={t}
         lang={lang}
@@ -514,7 +515,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         fallbackSpecialtiesCount={specialties.length}
       />
 
-      {/* 6. Featured Approved Doctors with 3D Depth Cards */}
+      {/* 6. Featured Approved Doctors with Carefinity 3D Depth Cards */}
       {featuredDoctors.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-6">
@@ -529,7 +530,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
             <motion.button
               whileHover={shouldReduceMotion ? {} : { x: 2 }}
               onClick={() => onNavigate('doctors')}
-              className="text-xs sm:text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+              className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
             >
               <span>{t('Browse All Doctors', 'সব ডাক্তার')}</span>
               <ArrowRight className="w-4 h-4" />
@@ -550,10 +551,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSearch, onSelectDoctor, on
         </section>
       )}
 
-      {/* 7. Patient Testimonials (3D Slide Transitions) */}
+      {/* 7. Patient Testimonials (Carefinity 3D Slide Review Cards) */}
       <Testimonials3D t={t} lang={lang} />
 
-      {/* 8. Official Daktar Serial Android Mobile App Showcase Banner */}
+      {/* 8. Carefinity-Inspired Official Android Mobile App Showcase Banner */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <motion.div
           initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 20 }}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, useInView, useReducedMotion } from 'motion/react';
-import { Users, Stethoscope, Building2, CalendarCheck, ShieldCheck, Award } from 'lucide-react';
+import { Users, Stethoscope, Building2, CalendarCheck, ShieldCheck, Award, Activity } from 'lucide-react';
 import { getApiUrl } from '../config/api.js';
 
 interface StatsProps {
@@ -18,7 +18,7 @@ interface StatItemProps {
   suffix?: string;
   badgeEn?: string;
   badgeBn?: string;
-  colorScheme: 'emerald' | 'teal' | 'cyan' | 'blue';
+  colorScheme: 'blue' | 'cyan' | 'sky' | 'indigo';
   lang: 'en' | 'bn';
   delay: number;
 }
@@ -42,7 +42,6 @@ const NumberCounter: React.FC<{ value: number; duration?: number }> = ({ value, 
     const animateCount = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const progress = Math.min((timestamp - startTime) / (duration * 1000), 1);
-      // Ease out cubic
       const easedProgress = 1 - Math.pow(1 - progress, 3);
       setDisplayValue(Math.floor(easedProgress * value));
 
@@ -78,37 +77,37 @@ const StatCard: React.FC<StatItemProps> = ({
   const [isHovered, setIsHovered] = useState(false);
 
   const colors = {
-    emerald: {
-      bg: 'from-emerald-500/10 via-emerald-500/5 to-transparent',
-      border: 'border-emerald-200/80 hover:border-emerald-400',
-      iconBg: 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
-      accent: 'text-emerald-600',
-      shadow: 'hover:shadow-emerald-500/15',
-      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/60',
-    },
-    teal: {
-      bg: 'from-teal-500/10 via-teal-500/5 to-transparent',
-      border: 'border-teal-200/80 hover:border-teal-400',
-      iconBg: 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white',
-      accent: 'text-teal-600',
-      shadow: 'hover:shadow-teal-500/15',
-      badge: 'bg-teal-50 text-teal-700 border-teal-200/60',
+    blue: {
+      bg: 'from-blue-500/10 via-cyan-500/5 to-transparent',
+      border: 'border-blue-200/80 hover:border-blue-400',
+      iconBg: 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white',
+      accent: 'text-blue-600',
+      shadow: 'hover:shadow-blue-500/15',
+      badge: 'bg-blue-50 text-blue-700 border-blue-200/60',
     },
     cyan: {
-      bg: 'from-cyan-500/10 via-cyan-500/5 to-transparent',
+      bg: 'from-cyan-500/10 via-sky-500/5 to-transparent',
       border: 'border-cyan-200/80 hover:border-cyan-400',
       iconBg: 'bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white',
       accent: 'text-cyan-600',
       shadow: 'hover:shadow-cyan-500/15',
       badge: 'bg-cyan-50 text-cyan-700 border-cyan-200/60',
     },
-    blue: {
-      bg: 'from-blue-500/10 via-blue-500/5 to-transparent',
-      border: 'border-blue-200/80 hover:border-blue-400',
-      iconBg: 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white',
-      accent: 'text-blue-600',
-      shadow: 'hover:shadow-blue-500/15',
-      badge: 'bg-blue-50 text-blue-700 border-blue-200/60',
+    sky: {
+      bg: 'from-sky-500/10 via-blue-500/5 to-transparent',
+      border: 'border-sky-200/80 hover:border-sky-400',
+      iconBg: 'bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white',
+      accent: 'text-sky-600',
+      shadow: 'hover:shadow-sky-500/15',
+      badge: 'bg-sky-50 text-sky-700 border-sky-200/60',
+    },
+    indigo: {
+      bg: 'from-indigo-500/10 via-blue-500/5 to-transparent',
+      border: 'border-indigo-200/80 hover:border-indigo-400',
+      iconBg: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
+      accent: 'text-indigo-600',
+      shadow: 'hover:shadow-indigo-500/15',
+      badge: 'bg-indigo-50 text-indigo-700 border-indigo-200/60',
     },
   }[colorScheme];
 
@@ -143,7 +142,6 @@ const StatCard: React.FC<StatItemProps> = ({
       }}
       className={`group relative rounded-2xl bg-white border ${colors.border} p-5 sm:p-6 shadow-xs ${colors.shadow} hover:shadow-2xl transition-all duration-300 overflow-hidden flex flex-col justify-between`}
     >
-      {/* 3D background gradient sheen */}
       <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg} opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none`} />
 
       <div className="relative z-10">
@@ -169,7 +167,7 @@ const StatCard: React.FC<StatItemProps> = ({
       </div>
 
       <div className="relative z-10 pt-3 mt-3 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-slate-500">
-        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+        <ShieldCheck className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
         <span className="truncate">{lang === 'bn' ? 'সরাসরি ডাটাবেস ভেরিফাইড' : 'Live Verified in System'}</span>
       </div>
     </motion.div>
@@ -204,15 +202,12 @@ export const AnimatedStats3D: React.FC<StatsProps> = ({
           });
         }
       })
-      .catch(() => {
-        // Fallback gracefully without breaking
-      });
+      .catch(() => {});
   }, [fallbackDoctorsCount, fallbackSpecialtiesCount]);
 
   return (
     <section className="relative">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-32 bg-emerald-500/5 blur-3xl rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-32 bg-blue-500/5 blur-3xl rounded-full pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
@@ -220,10 +215,10 @@ export const AnimatedStats3D: React.FC<StatsProps> = ({
             initial={{ opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-xs font-semibold mb-2 shadow-2xs"
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-semibold mb-2 shadow-2xs"
           >
-            <Award className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{t('Real-Time Healthcare Impact', 'লাইভ প্ল্যাটফর্ম পরিসংখ্যান')}</span>
+            <Activity className="w-3.5 h-3.5 text-cyan-600" />
+            <span>{t('Carefinity Healthcare Telemetry', 'লাইভ প্ল্যাটফর্ম পরিসংখ্যান')}</span>
           </motion.div>
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
@@ -256,7 +251,7 @@ export const AnimatedStats3D: React.FC<StatsProps> = ({
             labelBn="অনুমোদিত বিশেষজ্ঞ ডাক্তার"
             badgeEn="BMDC"
             badgeBn="বিএমডিসি"
-            colorScheme="emerald"
+            colorScheme="blue"
             lang={lang}
             delay={0}
           />
@@ -267,7 +262,7 @@ export const AnimatedStats3D: React.FC<StatsProps> = ({
             labelBn="মেডিকেল বিভাগ ও স্পেশালিটি"
             badgeEn="Departments"
             badgeBn="বিভাগসমূহ"
-            colorScheme="teal"
+            colorScheme="cyan"
             lang={lang}
             delay={1}
           />
@@ -278,7 +273,7 @@ export const AnimatedStats3D: React.FC<StatsProps> = ({
             labelBn="হাসপাতাল ও কনসাল্টেশন চেম্বার"
             badgeEn="Active"
             badgeBn="সক্রিয়"
-            colorScheme="cyan"
+            colorScheme="sky"
             lang={lang}
             delay={2}
           />
@@ -289,7 +284,7 @@ export const AnimatedStats3D: React.FC<StatsProps> = ({
             labelBn="মোট চেম্বার সিরিয়াল বুকিং"
             badgeEn="Confirmed"
             badgeBn="নিশ্চিত"
-            colorScheme="blue"
+            colorScheme="indigo"
             lang={lang}
             delay={3}
           />

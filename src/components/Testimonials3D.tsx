@@ -124,9 +124,9 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
             initial={{ opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-xs font-semibold mb-2 shadow-2xs"
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-semibold mb-2 shadow-2xs"
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" />
             <span>{t('Patient Experiences', 'রোগীদের অভিজ্ঞতা')}</span>
           </motion.div>
           <motion.h2
@@ -165,9 +165,8 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
               transformStyle: 'preserve-3d',
             }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="relative rounded-3xl bg-gradient-to-br from-white via-slate-50 to-emerald-50/40 border border-slate-200/90 p-6 sm:p-10 shadow-xl shadow-slate-900/5 hover:shadow-2xl transition-shadow overflow-hidden"
+            className="relative rounded-3xl bg-gradient-to-br from-white via-slate-50 to-blue-50/40 border border-slate-200/90 p-6 sm:p-10 shadow-xl shadow-slate-900/5 hover:shadow-2xl hover:border-blue-300 transition-all overflow-hidden"
           >
-            {/* Ambient background watermark quote */}
             <Quote className="absolute -top-4 -right-4 w-32 h-32 text-slate-100/80 -rotate-12 pointer-events-none" />
 
             <AnimatePresence mode="wait">
@@ -187,8 +186,8 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
                     ))}
                   </div>
 
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/70 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100/70 border border-blue-200 text-blue-800 text-xs font-bold shadow-2xs">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
                     <span>{current.serialBadge}</span>
                   </span>
                 </div>
@@ -201,7 +200,7 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
                 {/* Reviewer Details */}
                 <div className="pt-4 border-t border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white font-bold text-base flex items-center justify-center shadow-md shadow-emerald-500/20">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-600 text-white font-bold text-base flex items-center justify-center shadow-md shadow-blue-500/20">
                       {(lang === 'bn' ? current.nameBn : current.nameEn).charAt(0)}
                     </div>
                     <div>
@@ -210,7 +209,7 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
                       </h3>
                       <p className="text-xs text-slate-500">
                         {lang === 'bn' ? current.locationBn : current.locationEn} •{' '}
-                        <span className="text-emerald-600 font-semibold">
+                        <span className="text-blue-600 font-semibold">
                           {lang === 'bn' ? current.doctorSpecialtyBn : current.doctorSpecialtyEn}
                         </span>
                       </p>
@@ -222,7 +221,7 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
                     <button
                       type="button"
                       onClick={handlePrev}
-                      className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-emerald-600 transition shadow-xs cursor-pointer group"
+                      className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-blue-600 transition shadow-xs cursor-pointer group"
                       aria-label="Previous review"
                     >
                       <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -235,7 +234,7 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
                     <button
                       type="button"
                       onClick={handleNext}
-                      className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-emerald-600 transition shadow-xs cursor-pointer group"
+                      className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-blue-600 transition shadow-xs cursor-pointer group"
                       aria-label="Next review"
                     >
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -253,7 +252,7 @@ export const Testimonials3D: React.FC<TestimonialsProps> = ({ t, lang }) => {
                 key={index}
                 onClick={() => setActiveIndex(index)}
                 className={`h-2 rounded-full transition-all cursor-pointer ${
-                  index === activeIndex ? 'w-6 bg-emerald-600' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                  index === activeIndex ? 'w-6 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'
                 }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
